@@ -246,11 +246,23 @@ should take its parameters from tenant config instead of constants.
 - **`ip_address` / `user_agent`** are captured from the request's
   `X-Forwarded-For` (first hop) / `User-Agent` headers when present, else
   `NULL`. They are recorded on audit rows only.
-- **`404`** on `/2fa/disable`, `/2fa/verify`, `/2fa/recover`,
-  `/2fa/audit-log/{user_id}` = no `two_factor_records` row for that
-  `user_id`.
+- **`404`** on `/2fa/disable`, `/2fa/recover`, `/2fa/audit-log/{user_id}` =
+  no `two_factor_records` row for that `user_id` (all three list `404` in
+  their `openapi.yaml` responses).
+- **`/2fa/verify` and `/2fa/login` never return `404`** — the spec assigns
+  them only `400/401/423`. A missing record, or a record with no active
+  secret, is therefore reported as **`401`** (`TWO_FACTOR_NOT_ENABLED` /
+  `INVALID_TOKEN`), matching `/2fa/login`'s documented 401 text "Invalid
+  TOTP token or 2FA not enabled".
 - **`/2fa/verify` `400`** = token not exactly 6 ASCII digits.
-  **`401`** = well-formed token that does not match.
+  **`401`** = well-formed token that does not match. **`423`** once the
+  lockout has tripped (including on the failing attempt that trips it).
+- **`/2fa/disable` and `/2fa/recover` do not drive or read the lockout** —
+  neither lists `423` in the spec. A wrong TOTP on `/2fa/disable` or a wrong
+  backup code on `/2fa/recover` is a plain `401` and leaves
+  `failed_attempts` untouched. Only `/2fa/verify` and `/2fa/login` (the two
+  endpoints the spec marks with `423`) increment the counter and enforce the
+  lock.
 - **Backup codes**: 10 codes generated per enable, format `XXXX-XXXX`
   (uppercase Crockford-ish base32, dash-separated), hashed with Argon2id,
   returned in plaintext exactly once from `/2fa/enable`. `code_index` is the

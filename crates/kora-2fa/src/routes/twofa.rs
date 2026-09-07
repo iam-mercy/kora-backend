@@ -4,13 +4,19 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::Json;
+use chrono::{DateTime, Duration, Utc};
+use sqlx::PgExecutor;
+use totp_rs::TOTP;
 
 use crate::crypto;
 use crate::db::models::{
     AuditEvent, DisableTwoFactorRequest, EnableTwoFactorRequest, EnableTwoFactorResponse,
-    SuccessResponse,
+    LoginResponse, LoginWithTwoFactorRequest, SuccessResponse, TwoFactorRow,
+    VerifyTwoFactorRequest,
 };
+use crate::db::{LOCKOUT_DURATION, MAX_FAILED_ATTEMPTS};
 use crate::error::{ApiResult, AppError};
+use crate::jwt;
 use crate::middleware::auth::AuthUser;
 use crate::routes::{client_meta, insert_audit, load_record, AppState};
 use crate::totp;
@@ -193,4 +199,188 @@ pub async fn disable(
     tx.commit().await?;
 
     Ok(Json(SuccessResponse::ok("2FA disabled")))
+}
+
+/// `POST /2fa/verify` — validate a 6-digit TOTP. The first success after
+/// `/2fa/enable` activates 2FA (`enabled` audit event); later successes are
+/// plain checks (`verified`).
+///
+/// 200 `SuccessResponse` · 400 malformed · 401 invalid / not enabled ·
+/// 403 (not self) · 423 locked. (The spec assigns no 404 to this endpoint.)
+pub async fn verify(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    headers: HeaderMap,
+    body: Result<Json<VerifyTwoFactorRequest>, JsonRejection>,
+) -> ApiResult<Json<SuccessResponse>> {
+    let Json(req) = body?;
+    auth.require_self(&req.user_id)?;
+    let now = Utc::now();
+
+    let record = load_record(&state.pool, &req.user_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::unauthorized("TWO_FACTOR_NOT_ENABLED", "2FA is not enabled for this user")
+        })?;
+
+    if record.is_locked(now) {
+        return Err(AppError::locked(
+            "account is locked after too many failed attempts",
+        ));
+    }
+    if !totp::is_valid_format(&req.token) {
+        return Err(AppError::bad_request("token must be exactly 6 digits"));
+    }
+
+    let totp = totp_from_record(&state, &record)?;
+    if !totp::verify(&totp, &req.token) {
+        return Err(register_failure(&state.pool, &record, now).await?);
+    }
+
+    let (ip, ua) = client_meta(&headers);
+    let activating = record.pending;
+    let mut tx = state.pool.begin().await?;
+    sqlx::query!(
+        r#"
+        UPDATE two_factor_records
+        SET enabled = TRUE, pending = FALSE,
+            failed_attempts = 0, locked_until = NULL,
+            updated_at = now()
+        WHERE user_id = $1
+        "#,
+        req.user_id,
+    )
+    .execute(&mut *tx)
+    .await?;
+    let event = if activating {
+        AuditEvent::Enabled
+    } else {
+        AuditEvent::Verified
+    };
+    insert_audit(&mut *tx, &req.user_id, event, ip.as_deref(), ua.as_deref()).await?;
+    tx.commit().await?;
+
+    Ok(Json(SuccessResponse::ok(if activating {
+        "2FA enabled"
+    } else {
+        "token verified"
+    })))
+}
+
+/// `POST /2fa/login` — second factor of a two-step login. Unauthenticated:
+/// the spec gives this path no `security` block (ASSUMPTIONS.md #5). Returns
+/// a freshly minted HS256 session token.
+///
+/// 200 `LoginResponse` · 400 malformed · 401 invalid / not enabled ·
+/// 423 locked.
+pub async fn login(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Json<LoginWithTwoFactorRequest>, JsonRejection>,
+) -> ApiResult<Json<LoginResponse>> {
+    let Json(req) = body?;
+    let now = Utc::now();
+
+    let not_enabled =
+        || AppError::unauthorized("INVALID_TOKEN", "invalid TOTP token or 2FA not enabled");
+
+    let record = load_record(&state.pool, &req.user_id)
+        .await?
+        .ok_or_else(not_enabled)?;
+
+    if record.is_locked(now) {
+        return Err(AppError::locked(
+            "account is locked after too many failed attempts",
+        ));
+    }
+    if !record.enabled {
+        return Err(not_enabled());
+    }
+    if !totp::is_valid_format(&req.token) {
+        return Err(AppError::bad_request("token must be exactly 6 digits"));
+    }
+
+    let totp = totp_from_record(&state, &record)?;
+    if !totp::verify(&totp, &req.token) {
+        return Err(register_failure(&state.pool, &record, now).await?);
+    }
+
+    let (ip, ua) = client_meta(&headers);
+    let mut tx = state.pool.begin().await?;
+    clear_failures(&mut *tx, &req.user_id).await?;
+    insert_audit(
+        &mut *tx,
+        &req.user_id,
+        AuditEvent::Login,
+        ip.as_deref(),
+        ua.as_deref(),
+    )
+    .await?;
+    tx.commit().await?;
+
+    let session_token = jwt::mint_session_token(
+        &req.user_id,
+        &state.config.jwt_secret,
+        state.config.session_token_ttl,
+    )?;
+    Ok(Json(LoginResponse { session_token }))
+}
+
+// ─── shared lockout / verification helpers ─────────────────────────────────
+
+/// Decrypt a record's stored secret and build a live `TOTP`. A record with
+/// no secret means 2FA is not active → 401.
+fn totp_from_record(state: &AppState, record: &TwoFactorRow) -> ApiResult<TOTP> {
+    let (ct, nonce) = record
+        .secret_ciphertext
+        .as_deref()
+        .zip(record.secret_nonce.as_deref())
+        .ok_or_else(|| {
+            AppError::unauthorized("TWO_FACTOR_NOT_ENABLED", "2FA is not enabled for this user")
+        })?;
+    let secret = crypto::open_secret(&state.config.totp_encryption_key, ct, nonce)?;
+    Ok(totp::build(&secret, &record.issuer, &record.email)?)
+}
+
+/// Record one failed attempt against `record`. Trips the lock on the
+/// `MAX_FAILED_ATTEMPTS`-th consecutive failure. Returns the error the caller
+/// should surface: 423 once locked, otherwise 401.
+async fn register_failure(
+    exec: impl PgExecutor<'_>,
+    record: &TwoFactorRow,
+    now: DateTime<Utc>,
+) -> Result<AppError, sqlx::Error> {
+    let attempts = record.failed_attempts + 1;
+    let locked = attempts >= MAX_FAILED_ATTEMPTS;
+    let locked_until = locked.then(|| now + Duration::seconds(LOCKOUT_DURATION.as_secs() as i64));
+
+    sqlx::query!(
+        r#"
+        UPDATE two_factor_records
+        SET failed_attempts = $2, locked_until = $3, updated_at = now()
+        WHERE user_id = $1
+        "#,
+        record.user_id,
+        attempts,
+        locked_until,
+    )
+    .execute(exec)
+    .await?;
+
+    Ok(if locked {
+        AppError::locked("account locked after too many failed attempts; retry in 15 minutes")
+    } else {
+        AppError::unauthorized("INVALID_TOKEN", "the provided TOTP token is invalid")
+    })
+}
+
+/// Clear the failure counter and lock after any successful verification.
+async fn clear_failures(exec: impl PgExecutor<'_>, user_id: &str) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE two_factor_records SET failed_attempts = 0, locked_until = NULL WHERE user_id = $1",
+        user_id,
+    )
+    .execute(exec)
+    .await
+    .map(|_| ())
 }

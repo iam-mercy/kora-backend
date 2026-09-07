@@ -41,6 +41,8 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health::health))
         .route("/2fa/enable", post(twofa::enable))
         .route("/2fa/disable", post(twofa::disable))
+        .route("/2fa/verify", post(twofa::verify))
+        .route("/2fa/login", post(twofa::login))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
