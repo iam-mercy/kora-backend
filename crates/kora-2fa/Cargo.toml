@@ -1,0 +1,53 @@
+[package]
+name = "kora-2fa"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Kora App Backend 2FA / auth service (Phase 1)"
+
+[lints]
+workspace = true
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace"] }
+
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "macros",
+    "migrate",
+    "chrono",
+] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+thiserror = "2"
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
+
+# Real TOTP implementation (RFC 6238) — we do not hand-roll the algorithm.
+totp-rs = { version = "5", features = ["otpauth", "gen_secret"] }
+
+# HS256 JWT verification + session-token minting (see ASSUMPTIONS.md #1).
+jsonwebtoken = "9"
+
+# AES-256-GCM encryption at rest for the TOTP secret (see ASSUMPTIONS.md #3).
+aes-gcm = "0.10"
+
+# Argon2id hashing for backup codes (never stored plaintext).
+argon2 = "0.5"
+
+rand = "0.8"
+base64 = "0.22"
+
+[dev-dependencies]
+http-body-util = "0.1"
