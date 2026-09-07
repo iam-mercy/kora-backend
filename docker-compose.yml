@@ -1,0 +1,24 @@
+# Phase 1 local dependencies: Postgres only.
+#
+# No Redis service — the 5-failure / 15-minute lockout is implemented with
+# Postgres columns on the 2FA record (see ASSUMPTIONS.md #8), so Phase 1 has
+# no Redis dependency at all.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kora
+      POSTGRES_PASSWORD: kora
+      POSTGRES_DB: kora_2fa
+    ports:
+      - "5432:5432"
+    volumes:
+      - kora_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kora -d kora_2fa"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  kora_pgdata:
