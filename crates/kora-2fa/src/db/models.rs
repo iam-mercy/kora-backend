@@ -186,7 +186,8 @@ impl AuditEvent {
 
 // ─── DB rows ───────────────────────────────────────────────────────────────
 
-/// A `two_factor_records` row, as loaded by `user_id`.
+/// A `two_factor_records` row, as loaded by `user_id`. Only the columns the
+/// handlers actually use are carried (no `created_at` / `updated_at`).
 #[derive(Debug)]
 pub struct TwoFactorRow {
     pub user_id: String,
@@ -198,8 +199,6 @@ pub struct TwoFactorRow {
     pub pending: bool,
     pub failed_attempts: i32,
     pub locked_until: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 impl TwoFactorRow {

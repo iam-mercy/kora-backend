@@ -82,16 +82,6 @@ impl AppError {
             "An internal error occurred",
         )
     }
-
-    /// The machine-readable code, for tests and logging.
-    pub fn code(&self) -> &'static str {
-        self.code
-    }
-
-    /// The HTTP status, for tests.
-    pub fn status(&self) -> StatusCode {
-        self.status
-    }
 }
 
 impl IntoResponse for AppError {

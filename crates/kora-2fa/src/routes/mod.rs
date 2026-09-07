@@ -5,6 +5,7 @@
 //! are deliberately absent — not stubbed (ASSUMPTIONS.md #14).
 
 pub mod health;
+pub mod recovery;
 pub mod twofa;
 
 use std::sync::Arc;
@@ -43,6 +44,9 @@ pub fn router(state: AppState) -> Router {
         .route("/2fa/disable", post(twofa::disable))
         .route("/2fa/verify", post(twofa::verify))
         .route("/2fa/login", post(twofa::login))
+        .route("/2fa/recover", post(recovery::recover))
+        .route("/2fa/recovery-log", get(recovery::recovery_log))
+        .route("/2fa/audit-log/{user_id}", get(recovery::audit_log))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
@@ -85,8 +89,7 @@ pub async fn load_record(
         r#"
         SELECT user_id, email, issuer,
                secret_ciphertext, secret_nonce,
-               enabled, pending, failed_attempts, locked_until,
-               created_at, updated_at
+               enabled, pending, failed_attempts, locked_until
         FROM two_factor_records
         WHERE user_id = $1
         "#,
