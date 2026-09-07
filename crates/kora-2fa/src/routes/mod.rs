@@ -35,8 +35,9 @@ impl AppState {
     }
 }
 
-/// Build the Phase 1 router. Route groups are added by successive commits;
-/// `/2fa/verify`, `/2fa/login`, and the recovery endpoints follow.
+/// Build the Phase 1 router: the eight in-scope endpoints from
+/// `docs/openapi.yaml`, behind a request-tracing layer. Everything is
+/// self-only bearer-authenticated except `/2fa/login` and `/health`.
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health::health))
