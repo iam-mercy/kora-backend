@@ -5,6 +5,7 @@
 //! `/2fa/recovery-log`, `/2fa/audit-log/{user_id}`, and `/health`.
 
 mod config;
+mod error;
 
 use config::Config;
 
