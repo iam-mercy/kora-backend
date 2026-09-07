@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE two_factor_records SET\n            enabled           = FALSE,\n            pending           = FALSE,\n            secret_ciphertext = NULL,\n            secret_nonce      = NULL,\n            failed_attempts   = 0,\n            locked_until      = NULL,\n            updated_at        = now()\n        WHERE user_id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f66086757039770b15172a62d58332eafd76e8dadf90e2c1d0419f0e49d277f5"
+}

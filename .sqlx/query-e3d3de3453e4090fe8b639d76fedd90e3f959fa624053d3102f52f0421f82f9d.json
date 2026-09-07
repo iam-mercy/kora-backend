@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO two_factor_records\n            (user_id, email, issuer, secret_ciphertext, secret_nonce,\n             enabled, pending, failed_attempts, locked_until, updated_at)\n        VALUES ($1, $2, $3, $4, $5, FALSE, TRUE, 0, NULL, now())\n        ON CONFLICT (user_id) DO UPDATE SET\n            email             = EXCLUDED.email,\n            issuer            = EXCLUDED.issuer,\n            secret_ciphertext = EXCLUDED.secret_ciphertext,\n            secret_nonce      = EXCLUDED.secret_nonce,\n            enabled           = FALSE,\n            pending           = TRUE,\n            failed_attempts   = 0,\n            locked_until      = NULL,\n            updated_at        = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e3d3de3453e4090fe8b639d76fedd90e3f959fa624053d3102f52f0421f82f9d"
+}

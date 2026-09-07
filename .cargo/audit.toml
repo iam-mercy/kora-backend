@@ -1,0 +1,17 @@
+# `cargo audit` configuration.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 — "Marvin Attack" timing sidechannel in `rsa` 0.9.x.
+    #
+    # `rsa` is pulled in transitively by `sqlx-macros-core -> sqlx-mysql`,
+    # which the sqlx compile-time query macros depend on unconditionally
+    # regardless of enabled drivers. This service is built Postgres-only
+    # (`sqlx` default-features = false, features = ["postgres", ...]) and
+    # never opens a MySQL connection, so the vulnerable `caching_sha2_password`
+    # RSA path is unreachable at runtime. No fixed `rsa` release exists yet.
+    #
+    # Revisit when sqlx removes the transitive dependency or `rsa` ships a
+    # constant-time fix. Tracked in ASSUMPTIONS.md #15.
+    "RUSTSEC-2023-0071",
+]

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM backup_codes WHERE user_id = $1 AND consumed = FALSE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ca3f8399cf34bc8e58038dd0097d3e494654af9d417060555d9410ab9e263148"
+}
