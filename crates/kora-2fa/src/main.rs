@@ -8,6 +8,9 @@ mod config;
 mod crypto;
 mod db;
 mod error;
+mod jwt;
+mod middleware;
+mod routes;
 mod totp;
 
 use config::Config;
