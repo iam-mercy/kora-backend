@@ -1,19 +1,11 @@
-//! Kora App Backend 2FA service — Phase 1.
+//! Kora App Backend 2FA service — Phase 1 entrypoint.
 //!
-//! Implements the 2FA/auth endpoints from `docs/openapi.yaml`:
-//! `/2fa/enable`, `/2fa/disable`, `/2fa/verify`, `/2fa/login`, `/2fa/recover`,
-//! `/2fa/recovery-log`, `/2fa/audit-log/{user_id}`, and `/health`.
+//! Loads configuration, opens the Postgres pool, applies migrations, and
+//! serves the router from [`kora_2fa::routes`]. All handler logic lives in
+//! the library crate.
 
-mod config;
-mod crypto;
-mod db;
-mod error;
-mod jwt;
-mod middleware;
-mod routes;
-mod totp;
-
-use config::Config;
+use kora_2fa::config::{self, Config};
+use kora_2fa::{db, routes};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
