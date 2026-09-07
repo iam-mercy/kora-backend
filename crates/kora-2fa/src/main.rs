@@ -5,8 +5,10 @@
 //! `/2fa/recovery-log`, `/2fa/audit-log/{user_id}`, and `/health`.
 
 mod config;
+mod crypto;
 mod db;
 mod error;
+mod totp;
 
 use config::Config;
 
