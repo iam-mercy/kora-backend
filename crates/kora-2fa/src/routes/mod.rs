@@ -4,9 +4,14 @@
 //! `/tenant/provision`, and `/ws/leaderboard` paths in `docs/openapi.yaml`
 //! are deliberately absent — not stubbed (ASSUMPTIONS.md #14).
 
+pub mod health;
+
 use std::sync::Arc;
 
+use axum::routing::get;
+use axum::Router;
 use sqlx::PgPool;
+use tower_http::trace::TraceLayer;
 
 use crate::config::Config;
 
@@ -24,4 +29,13 @@ impl AppState {
             pool,
         }
     }
+}
+
+/// Build the Phase 1 router. Endpoint groups are added by the following
+/// commits; for now only `/health` is mounted.
+pub fn router(state: AppState) -> Router {
+    Router::new()
+        .route("/health", get(health::health))
+        .layer(TraceLayer::new_for_http())
+        .with_state(state)
 }
