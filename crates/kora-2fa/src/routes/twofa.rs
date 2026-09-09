@@ -361,6 +361,9 @@ fn totp_from_record(state: &AppState, record: &TwoFactorRow) -> ApiResult<TOTP> 
 /// callers serialise on the row instead of racing a read-modify-write.
 /// Returns the error the caller should surface, taken from the post-update
 /// row: **423** once `locked_until` is in the future, otherwise **401**.
+///
+/// The atomicity is pinned by
+/// `tests/integration.rs::concurrent_wrong_totp_never_loses_a_failure`.
 async fn register_failure(
     exec: impl PgExecutor<'_>,
     user_id: &str,
