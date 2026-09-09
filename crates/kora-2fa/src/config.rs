@@ -121,6 +121,21 @@ impl Config {
     pub fn log_filter() -> String {
         std::env::var("RUST_LOG").unwrap_or_else(|_| "info,kora_2fa=info".to_owned())
     }
+
+    /// Names of the secret env vars still set to their `.env.example`
+    /// placeholder value. Empty for a correctly provisioned deployment.
+    /// [`Config::from_env`] calls this at boot and warns loudly for each hit
+    /// so a real deployment cannot silently ship the example secrets.
+    pub fn example_secrets_in_use(&self) -> Vec<&'static str> {
+        let mut flagged = Vec::new();
+        if self.jwt_secret == EXAMPLE_JWT_SECRET {
+            flagged.push("JWT_SECRET");
+        }
+        if self.totp_encryption_key == EXAMPLE_TOTP_ENCRYPTION_KEY {
+            flagged.push("TOTP_ENCRYPTION_KEY");
+        }
+        flagged
+    }
 }
 
 /// Redacts the two secret fields; every other field is printed so operators
