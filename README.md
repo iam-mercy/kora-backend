@@ -65,6 +65,8 @@ crates/kora-2fa/           the service
   tests/integration.rs     end-to-end tests against real Postgres
 migrations/                sqlx migrations
 docs/                      vendored openapi.yaml + environment-variables.md
+Dockerfile                 multi-stage build -> distroless runtime image
+docker-compose.yml         Postgres + the kora-2fa service
 ```
 
 ## Running locally
