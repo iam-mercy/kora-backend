@@ -342,9 +342,12 @@ fn totp_from_record(state: &AppState, record: &TwoFactorRow) -> ApiResult<TOTP> 
     Ok(totp::build(&secret, &record.issuer, &record.email)?)
 }
 
-/// Record one failed attempt against `record`. Trips the lock on the
-/// `MAX_FAILED_ATTEMPTS`-th consecutive failure. Returns the error the caller
-/// should surface: 423 once locked, otherwise 401.
+/// Record one failed TOTP check for `user_id`. A single `UPDATE` bumps
+/// `failed_attempts` and, on the `MAX_FAILED_ATTEMPTS`-th consecutive
+/// failure, sets `locked_until` in the same statement — so concurrent
+/// callers serialise on the row instead of racing a read-modify-write.
+/// Returns the error the caller should surface, taken from the post-update
+/// row: **423** once `locked_until` is in the future, otherwise **401**.
 async fn register_failure(
     exec: impl PgExecutor<'_>,
     user_id: &str,
