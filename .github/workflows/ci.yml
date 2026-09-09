@@ -79,4 +79,4 @@ jobs:
       # widening from `advisories` to the full check as each section lands.
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check advisories
+          command: check advisories sources
