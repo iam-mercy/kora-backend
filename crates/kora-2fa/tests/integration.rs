@@ -472,8 +472,16 @@ async fn lockout_counter_starts_at_zero(pool: PgPool) {
     assert_eq!(failed_attempts(&pool, user).await, 0);
 }
 
+/// Regression test for the lost-update race in `register_failure`. Against
+/// the old read-modify-write (fetch `failed_attempts`, add one in Rust, write
+/// it back) this fails: concurrent requests read the same starting count and
+/// write the same value, so the final counter lands below `N` and the lockout
+/// never trips. The atomic `failed_attempts = failed_attempts + 1` UPDATE
+/// makes it pass.
 #[sqlx::test(migrations = "../../migrations")]
 async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
+    // N is exactly MAX_FAILED_ATTEMPTS, so a correct implementation both
+    // counts all N and trips the lock on the Nth.
     const N: usize = 5;
     let app = app(pool.clone());
     let user = "race_user";
