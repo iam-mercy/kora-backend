@@ -71,3 +71,37 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    # Same Postgres service as `test`: the integration and hardening suites
+    # need a real database, and #[sqlx::test] forks a per-test DB off it.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      # Report-only for now: this run establishes the number that kora-app's
+      # "100% function coverage / well-tested" claim is measured against. No
+      # threshold gate yet — see ASSUMPTIONS.md §22.
+      - name: Measure coverage
+        run: cargo llvm-cov --workspace --all-targets --summary-only
