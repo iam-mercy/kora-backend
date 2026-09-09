@@ -48,6 +48,9 @@ RUN cargo chef prepare --recipe-path recipe.json
 # ── builder ───────────────────────────────────────────────────────────────────
 FROM chef AS builder
 
+# One-shot build: incremental artifacts would just bloat the layer.
+ENV CARGO_INCREMENTAL=0
+
 # Compile every dependency first, from the recipe alone. This layer only busts
 # when the dependency set changes.
 COPY --from=planner /app/recipe.json recipe.json
