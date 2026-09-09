@@ -63,3 +63,5 @@ USER nonroot:nonroot
 # so the container listens on all interfaces without needing compose to pass it.
 ENV BIND_ADDR=0.0.0.0:8080
 EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/kora-2fa"]
