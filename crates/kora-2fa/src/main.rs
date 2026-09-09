@@ -22,7 +22,9 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let bind_addr = config.bind_addr;
-    let pool = db::connect(&config).await?;
+    // Retry a not-yet-ready Postgres rather than exiting on the first refusal
+    // (a real race in orchestrated environments, compose healthcheck or not).
+    let pool = db::connect_with_retry(&config).await?;
     db::run_migrations(&pool).await?;
     tracing::info!("migrations applied");
 
