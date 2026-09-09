@@ -1,0 +1,41 @@
+# cargo-deny — supply-chain policy for kora-backend.
+#
+# Checked in CI by the `cargo-deny` job in .github/workflows/ci.yml. This first
+# cut covers advisories only; licenses, bans, and sources are layered on in
+# follow-up commits. Run `cargo deny check` locally before touching a
+# dependency.
+
+[graph]
+# Resolve the crate graph with every feature on, so the policy sees the same
+# dependency set the sqlx macros and the release build pull in.
+all-features = true
+
+[output]
+feature-depth = 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Advisories — the RUSTSEC database
+# ─────────────────────────────────────────────────────────────────────────────
+[advisories]
+version = 2
+db-urls = ["https://github.com/rustsec/advisory-db"]
+
+# A crate can be yanked upstream with no change on our side, which would turn
+# an unrelated PR red. Treat it as a warning and chase it deliberately rather
+# than letting it block the queue.
+yanked = "warn"
+
+ignore = [
+    # Intentionally empty.
+    #
+    # `cargo audit` used to flag RUSTSEC-2023-0071 (`rsa` "Marvin Attack"
+    # timing side-channel) because `rsa` 0.9.x sits in Cargo.lock as a
+    # transitive of `sqlx-mysql`. That crate never activates in this
+    # Postgres-only build — `cargo tree -i rsa` reports nothing — so
+    # cargo-deny's graph-based check does not see it and no ignore is needed.
+    #
+    # If a future dependency change pulls `rsa` into the real graph this check
+    # will start failing. Add the ignore back *here*, with a fresh rationale
+    # and a pointer to ASSUMPTIONS.md §15, rather than reaching for a blanket
+    # suppression.
+]

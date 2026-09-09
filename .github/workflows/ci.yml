@@ -68,3 +68,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo install --locked cargo-audit
       - run: cargo audit
+
+  cargo-deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Prebuilt binary + cached advisory DB; no toolchain build needed.
+      # `deny.toml` grows one policy layer at a time — this step tracks it,
+      # widening from `advisories` to the full check as each section lands.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories
