@@ -360,9 +360,9 @@ The service ships a multi-stage [`Dockerfile`](Dockerfile), and
 - **Offline build** — `SQLX_OFFLINE=true` + the checked-in `.sqlx/` cache;
   the image builds with no database (#15). `migrations/` is embedded by
   `sqlx::migrate!` at compile time, so the runtime image omits it.
-- **Runtime image** — `gcr.io/distroless/cc-debian12:nonroot`: glibc +
-  `ca-certificates`, no shell or package manager, runs as uid 65532. Just
-  the stripped binary is copied in.
+- **Runtime image** — `gcr.io/distroless/cc-debian12:nonroot`, pinned by
+  digest: glibc + `ca-certificates`, no shell or package manager, runs as uid
+  65532. Just the stripped binary is copied in; the result is ~47 MB.
 - **No `HEALTHCHECK`** in the image (distroless has no tool to run one);
   probe `GET /health` from the orchestrator. Compose still gates the service
   on `postgres`'s own healthcheck via `depends_on: condition:
