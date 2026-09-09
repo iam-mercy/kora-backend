@@ -33,7 +33,8 @@ RUN apt-get update \
 # cargo-chef turns the dependency graph into a cacheable layer so day-to-day
 # source edits don't trigger a full rebuild of every crate.
 ARG CARGO_CHEF_VERSION=0.1.68
-RUN cargo install cargo-chef --locked --version ${CARGO_CHEF_VERSION}
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    cargo install cargo-chef --locked --version ${CARGO_CHEF_VERSION}
 
 # ── planner ───────────────────────────────────────────────────────────────────
 # Distil the workspace down to a dependency recipe. Only Cargo.* manifests
@@ -48,7 +49,8 @@ FROM chef AS builder
 # Compile every dependency first, from the recipe alone. This layer only busts
 # when the dependency set changes.
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --package kora-2fa --recipe-path recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    cargo chef cook --release --package kora-2fa --recipe-path recipe.json
 
 # No database at build time: the query!/query_as! macros resolve against the
 # committed .sqlx cache instead of a live connection.
@@ -57,7 +59,8 @@ ENV SQLX_OFFLINE=true
 # Now the real sources. migrations/ is embedded into the binary by
 # sqlx::migrate! here, so the runtime image won't need it.
 COPY . .
-RUN cargo build --release --package kora-2fa --locked
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    cargo build --release --package kora-2fa --locked
 
 # Drop debug symbols before the binary is carried into the runtime image.
 RUN strip target/release/kora-2fa
