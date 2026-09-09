@@ -28,6 +28,10 @@ services:
     container_name: kora-2fa
     ports:
       - "8080:8080"
+    # Same knobs as local dev; .env.example is the single source of truth for
+    # the non-secret defaults (DB pool sizes, RUST_LOG, TTLs, the dev keys).
+    env_file:
+      - .env.example
 
 volumes:
   kora_pgdata:
