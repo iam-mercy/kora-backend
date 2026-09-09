@@ -74,7 +74,8 @@ FROM gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79194e45a7da0158a9c6da57
 LABEL org.opencontainers.image.title="kora-2fa" \
       org.opencontainers.image.description="Kora App Backend 2FA / auth service (Phase 1)" \
       org.opencontainers.image.source="https://github.com/iam-mercy/kora-backend" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.base.name="gcr.io/distroless/cc-debian12:nonroot"
 
 WORKDIR /app
 COPY --from=builder /app/target/release/kora-2fa /usr/local/bin/kora-2fa
