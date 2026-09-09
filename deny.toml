@@ -146,4 +146,16 @@ skip = [
     { crate = "rand" },
     { crate = "rand_core" },
     { crate = "rand_chacha" },
+
+    # ── getrandom 0.2 / 0.3 ────────────────────────────────────────────────
+    # Same root cause as the rand split: getrandom 0.2 sits under rand_core
+    # 0.6 (aes-gcm's crypto-common), getrandom 0.3 under rand_core 0.9
+    # (totp-rs). Resolves with the rand family.
+    { crate = "getrandom" },
+
+    # ── hashbrown 0.15 / 0.17 ──────────────────────────────────────────────
+    # Both reached only through sqlx-core: 0.15 via hashlink, 0.17 via
+    # indexmap. One sqlx dependency bump away from collapsing; nothing we
+    # control. Small, and it is already linked once for the std HashMap impl.
+    { crate = "hashbrown" },
 ]
