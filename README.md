@@ -69,9 +69,23 @@ docs/                      vendored openapi.yaml + environment-variables.md
 
 ## Running locally
 
+### Everything in containers
+
+```sh
+docker compose up --build                   # builds the image, starts Postgres + kora-2fa
+curl localhost:8080/health                   # {"status":"ok"}
+```
+
+`docker compose up` builds [`Dockerfile`](Dockerfile) (multi-stage: cargo-chef
+dependency cache → `--release` build → distroless runtime, non-root), waits for
+Postgres to pass its healthcheck, then starts the service on `:8080` wired to
+the same env as [`.env.example`](.env.example).
+
+### Service on the host, Postgres in a container
+
 ```sh
 cp .env.example .env
-docker compose up -d                       # Postgres 16 on :5432
+docker compose up -d postgres              # just Postgres 16 on :5432
 cargo run -p kora-2fa                       # migrates on startup, serves :8080
 curl localhost:8080/health                  # {"status":"ok"}
 ```
