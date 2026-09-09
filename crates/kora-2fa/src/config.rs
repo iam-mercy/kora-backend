@@ -23,6 +23,15 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// unavailable at build time.
 pub const GIT_SHA: &str = env!("GIT_SHA");
 
+/// The placeholder `JWT_SECRET` shipped in `.env.example`. Running with this
+/// value outside local development is a security hole — see
+/// [`Config::example_secrets_in_use`].
+pub const EXAMPLE_JWT_SECRET: &str = "dev-only-insecure-change-me";
+
+/// The placeholder `TOTP_ENCRYPTION_KEY` from `.env.example`, decoded to its
+/// 32 raw bytes (base64 `MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=`).
+pub const EXAMPLE_TOTP_ENCRYPTION_KEY: [u8; 32] = *b"0123456789abcdef0123456789abcdef";
+
 /// Fully validated service configuration.
 #[derive(Clone)]
 pub struct Config {
