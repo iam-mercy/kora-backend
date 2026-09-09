@@ -17,3 +17,10 @@ target/
 .idea/
 **/*.rs.bk
 *.log
+
+# Prose and container plumbing — not inputs to `cargo build`.
+docs/
+*.md
+Dockerfile
+.dockerignore
+docker-compose.yml
