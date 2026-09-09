@@ -135,4 +135,15 @@ skip = [
     # Drops out once displaydoc / the icu stack move to syn 2.x's successor
     # line uniformly.
     { crate = "syn" },
+
+    # ── The rand 0.8 / 0.9 split ────────────────────────────────────────────
+    # rand 0.8 is a direct dependency (backup-code generation) and is also
+    # pulled by sqlx-postgres; rand 0.9 comes in through totp-rs. rand_core
+    # and rand_chacha fork the same way (0.6/0.3 under the 0.8 line, 0.9 under
+    # the 0.9 line). Collapsible once totp-rs releases on rand 0.9-final and
+    # sqlx follows — or once our own direct dep moves to 0.9, which is a
+    # deliberate change, not a lockfile bump.
+    { crate = "rand" },
+    { crate = "rand_core" },
+    { crate = "rand_chacha" },
 ]
