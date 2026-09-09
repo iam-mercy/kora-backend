@@ -36,10 +36,10 @@ impl AppState {
 }
 
 /// Build the Phase 1 router: the eight in-scope endpoints from
-/// `docs/openapi.yaml`, behind a request-tracing layer. Everything is
+/// `docs/openapi.yaml`, behind the shared hardening stack. Everything is
 /// self-only bearer-authenticated except `/2fa/login` and `/health`.
 pub fn router(state: AppState) -> Router {
-    Router::new()
+    let endpoints = Router::new()
         .route("/health", get(health::health))
         .route("/2fa/enable", post(twofa::enable))
         .route("/2fa/disable", post(twofa::disable))
@@ -47,9 +47,24 @@ pub fn router(state: AppState) -> Router {
         .route("/2fa/login", post(twofa::login))
         .route("/2fa/recover", post(recovery::recover))
         .route("/2fa/recovery-log", get(recovery::recovery_log))
-        .route("/2fa/audit-log/{user_id}", get(recovery::audit_log))
-        .layer(TraceLayer::new_for_http())
-        .with_state(state)
+        .route("/2fa/audit-log/{user_id}", get(recovery::audit_log));
+
+    hardening_layers(endpoints).with_state(state)
+}
+
+/// The cross-cutting hardening stack applied to every route.
+///
+/// `.layer()` applies bottom-to-top, so the calls read inner-to-outer: the
+/// last one added is the outermost wrapper and sees the request first / the
+/// response last.
+///
+/// Generic over the router's state type so tests can drive the exact stack
+/// against a throwaway stateless router.
+pub fn hardening_layers<S>(router: Router<S>) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    router.layer(TraceLayer::new_for_http())
 }
 
 // ─── Cross-handler helpers ─────────────────────────────────────────────────
