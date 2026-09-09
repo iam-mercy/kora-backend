@@ -461,3 +461,57 @@ parameters for testing. Migrations and the rest of boot are unchanged.
 Covered by the `db` unit tests (`backoff_delay` schedule, default budget,
 and `connect_with_backoff_gives_up_after_the_attempt_budget` against an
 unreachable port).
+
+---
+
+## 21. Supply-chain policy: `cargo-deny` replaces `cargo audit`
+
+§15 described CI as `fmt` / `clippy` / `test` / `cargo audit`, with the one
+RUSTSEC advisory it flagged suppressed in `.cargo/audit.toml`. That file was
+a bare `ignore = ["RUSTSEC-2023-0071"]` — a suppression list with no policy
+around it, and nothing checking licenses, dependency sources, or duplicate
+versions at all.
+
+**Decision:** replace the `cargo audit` job with **`cargo-deny`** (CI job
+`cargo-deny`, config `deny.toml` at the repo root), running all four checks:
+
+- **advisories** — same RUSTSEC database `cargo audit` used.
+- **licenses** — every crate must resolve to an allow-listed permissive /
+  public-domain SPDX id. One scoped exception: `webpki-roots` carries
+  Mozilla's CA bundle under `CDLA-Permissive-2.0`.
+- **bans** — one version per crate (`multiple-versions = "deny"`) and no
+  `version = "*"` deps. The 15 crates duplicated in today's graph (the
+  `windows-sys` import-lib stack, `syn` 2.x/3.x, the `rand` 0.8/0.9 family,
+  `getrandom`, `hashbrown`) are each enumerated in `skip` with the reason
+  they can't be collapsed yet.
+- **sources** — crates.io only; no git or alternate-registry deps.
+
+`.cargo/audit.toml` is deleted. **`RUSTSEC-2023-0071` is not ignored
+anywhere any more** and CI is still green: `cargo audit` flagged it because
+`rsa` 0.9.x sits in `Cargo.lock` as a transitive of `sqlx-mysql`, but that
+crate never activates in this Postgres-only build (`cargo tree -i rsa`
+returns nothing), so `cargo-deny`'s graph-based advisory check does not see
+it. `deny.toml`'s `[advisories]` block records this, with instructions to
+re-add a *scoped* ignore there (not a blanket one) if a future dependency
+change pulls `rsa` into the real graph.
+
+**Why the job is green on day one rather than blocking existing CI:** every
+current finding — the 15 duplicate pairs and the one non-standard license —
+is written into `deny.toml` as an explicit, commented exception. The policy
+is "deny", the exceptions are the enumerated exhaust of what's already here,
+and the value is that the *next* new duplicate, disallowed license, fresh
+advisory, or git dependency fails the PR that introduces it. If a finding
+does land on `main` (an advisory published against a crate we already ship),
+the escape hatch is a one-line `ignore = [{ id = "...", reason = "..." }]`
+in `[advisories]` with the reason recorded, same shape as every other
+exception in the file — not disabling the job.
+
+**Gap:** the job runs `EmbarkStudios/cargo-deny-action@v2`, which tracks the
+latest `cargo-deny` rather than a pinned version, so a new lint or a
+tightened default in that tool could turn CI red on an unrelated PR. Pin the
+version in the action inputs if that churn shows up. The `skip` list is also
+a standing maintenance item — each entry should be retested against upstream
+and deleted as the ecosystem converges.
+
+Reconcile job names / policy with `kora-app`'s own workflows when that repo
+is in reach (same caveat as §15).
