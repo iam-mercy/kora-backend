@@ -293,6 +293,8 @@ pub async fn login(
         .await?
         .ok_or_else(not_enabled)?;
 
+    // Fast-path guard only; see verify(). The lock decision for this request
+    // is made by register_failure() against the row it writes.
     if record.is_locked(now) {
         return Err(AppError::locked(
             "account is locked after too many failed attempts",
