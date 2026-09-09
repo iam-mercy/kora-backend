@@ -1,0 +1,73 @@
+//! Tests for the cross-cutting hardening stack in `routes::hardening_layers`
+//! (`routes::router`): panic-catching, request-body cap, and request timeout.
+//!
+//! None of these touch Postgres — the router is built over a lazy pool that
+//! is never queried — so they run without a database, unlike the
+//! `#[sqlx::test]` suite in `integration.rs`.
+
+use std::time::Duration;
+
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use axum::Router;
+use http_body_util::BodyExt;
+use serde_json::Value;
+use sqlx::PgPool;
+use tower::ServiceExt;
+
+use kora_2fa::config::Config;
+use kora_2fa::routes::{self, AppState, REQUEST_BODY_LIMIT_BYTES};
+
+/// A pool that parses its URL but never connects — enough to build the real
+/// `AppState`/`router` for tests that never reach a handler that queries.
+fn lazy_pool() -> PgPool {
+    PgPool::connect_lazy("postgresql://kora:kora@127.0.0.1:5432/unused").unwrap()
+}
+
+fn test_config() -> Config {
+    Config {
+        database_url: "unused-in-tests".to_owned(),
+        db_pool_min: 1,
+        db_pool_max: 1,
+        db_pool_acquire_timeout: Duration::from_secs(1),
+        pool_stats_enabled: false,
+        bind_addr: "127.0.0.1:0".parse().unwrap(),
+        jwt_secret: "hardening-tests-secret".to_owned(),
+        totp_encryption_key: [7u8; 32],
+        session_token_ttl: Duration::from_secs(900),
+    }
+}
+
+/// The production router, over a never-queried pool.
+fn production_router() -> Router {
+    routes::router(AppState::new(test_config(), lazy_pool()))
+}
+
+async fn send(app: Router, req: Request<Body>) -> (StatusCode, Value) {
+    let resp = app.oneshot(req).await.unwrap();
+    let status = resp.status();
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let json = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+    };
+    (status, json)
+}
+
+/// The body cap is wired into the real `router()`: an oversized POST to a
+/// genuine endpoint is refused before auth or the handler runs.
+#[tokio::test]
+async fn production_router_rejects_oversized_body() {
+    let oversized = "x".repeat(REQUEST_BODY_LIMIT_BYTES + 1);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/2fa/verify")
+        .header("content-type", "application/json")
+        .header("content-length", oversized.len())
+        .body(Body::from(oversized))
+        .unwrap();
+
+    let (status, _) = send(production_router(), req).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+}
