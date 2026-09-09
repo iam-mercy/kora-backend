@@ -131,6 +131,33 @@ async fn activate(app: &Router, user: &str) -> String {
     secret
 }
 
+/// Fire `n` wrong-TOTP `/2fa/verify` calls at `user` concurrently and return
+/// their status codes once every one has completed.
+async fn race_wrong_totp(app: &Router, user: &str, n: usize) -> Vec<StatusCode> {
+    let auth = bearer(user);
+    let mut set = tokio::task::JoinSet::new();
+    for _ in 0..n {
+        let (app, auth, user) = (app.clone(), auth.clone(), user.to_owned());
+        set.spawn(async move {
+            call(
+                &app,
+                post(
+                    "/2fa/verify",
+                    Some(&auth),
+                    json!({ "user_id": user, "token": "000000" }),
+                ),
+            )
+            .await
+            .0
+        });
+    }
+    let mut out = Vec::with_capacity(n);
+    while let Some(res) = set.join_next().await {
+        out.push(res.unwrap());
+    }
+    out
+}
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn full_2fa_lifecycle(pool: PgPool) {
     let app = app(pool);
@@ -455,26 +482,7 @@ async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
 
     // Fire N wrong-TOTP verifies at the same user_id concurrently, the way a
     // parallel guessing attack would, rather than one after another.
-    let mut set = tokio::task::JoinSet::new();
-    for _ in 0..N {
-        let (app, auth, user) = (app.clone(), auth.clone(), user.to_owned());
-        set.spawn(async move {
-            call(
-                &app,
-                post(
-                    "/2fa/verify",
-                    Some(&auth),
-                    json!({ "user_id": user, "token": "000000" }),
-                ),
-            )
-            .await
-            .0
-        });
-    }
-    let mut statuses = Vec::new();
-    while let Some(res) = set.join_next().await {
-        statuses.push(res.unwrap());
-    }
+    let statuses = race_wrong_totp(&app, user, N).await;
     assert_eq!(statuses.len(), N);
     assert!(
         statuses
