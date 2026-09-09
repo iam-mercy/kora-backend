@@ -67,8 +67,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 # ── runtime ───────────────────────────────────────────────────────────────────
 # distroless/cc carries glibc + libgcc + ca-certificates and nothing else — no
-# shell, no package manager. Its :nonroot tag runs as uid 65532.
-FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
+# shell, no package manager. The :nonroot tag runs as uid 65532; pinned by
+# digest so the runtime base can't drift under us.
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79194e45a7da0158a9c6da57b217585af0786db3845d1f0ec1a0dd182f AS runtime
 
 LABEL org.opencontainers.image.title="kora-2fa" \
       org.opencontainers.image.description="Kora App Backend 2FA / auth service (Phase 1)" \
