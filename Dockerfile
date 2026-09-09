@@ -55,3 +55,6 @@ RUN strip target/release/kora-2fa
 FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
 WORKDIR /app
 COPY --from=builder /app/target/release/kora-2fa /usr/local/bin/kora-2fa
+
+# Explicit even though :nonroot already defaults to it.
+USER nonroot:nonroot
