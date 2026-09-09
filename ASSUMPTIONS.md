@@ -416,3 +416,48 @@ needs them tunable, add them to a future revision of
 Covered by `tests/hardening.rs` (panic envelope, body cap up-front and
 mid-read, timeout `408`, pass-through of ordinary responses) and the
 `panic_message` unit tests in `routes`.
+
+---
+
+## 19. Boot-time guard against the `.env.example` placeholder secrets
+
+`.env.example` ships a dev `JWT_SECRET` (`dev-only-insecure-change-me`) and a
+dev `TOTP_ENCRYPTION_KEY` (base64
+`MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=`), and `docker-compose.yml`
+feeds that file to the service verbatim (#17). Nothing stops a real
+deployment from doing the same and silently shipping known secrets.
+
+**Decision:** `Config::from_env` compares the loaded `JWT_SECRET` /
+`TOTP_ENCRYPTION_KEY` against those exact placeholder values
+(`config::EXAMPLE_JWT_SECRET`, `config::EXAMPLE_TOTP_ENCRYPTION_KEY`) and
+emits a loud `WARN` per hit (`Config::example_secrets_in_use` returns the
+list). The service still **starts** — refusing would break the local compose
+stack and CI, both of which use the example file on purpose — so the check
+is a warning, not a hard stop. Promote it to a refusal once real auth infra
+(#1) lands and `.env.example` no longer carries usable secrets.
+
+Covered by the `config` unit tests (`placeholder_jwt_secret_is_flagged`,
+`placeholder_totp_key_is_flagged`, `both_placeholders_are_flagged_together`,
+`real_secrets_are_not_flagged`, and a drift guard tying the decoded key
+constant back to the `.env.example` base64 literal).
+
+---
+
+## 20. Boot-time database-connect retry
+
+`main` used to call `db::connect` once and propagate the error, so the
+process exited if Postgres was not yet accepting connections at startup.
+Compose gates the service on `postgres`'s healthcheck (#17), but that race
+is still real in other orchestrated environments (a rescheduled pod, a
+CI runner bringing services up in parallel).
+
+**Decision:** `main` connects via `db::connect_with_retry`, which retries up
+to `db::CONNECT_MAX_ATTEMPTS` (5) times with exponential backoff from
+`db::CONNECT_BASE_BACKOFF` (1s → 2s → 4s → 8s; `db::backoff_delay`). Only
+after the final attempt fails does it return the error, and `main` then
+exits non-zero as before. `db::connect_with_backoff` takes the budget as
+parameters for testing. Migrations and the rest of boot are unchanged.
+
+Covered by the `db` unit tests (`backoff_delay` schedule, default budget,
+and `connect_with_backoff_gives_up_after_the_attempt_budget` against an
+unreachable port).
