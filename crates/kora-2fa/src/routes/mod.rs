@@ -63,6 +63,11 @@ pub fn router(state: AppState) -> Router {
 /// the service buffer.
 pub const REQUEST_BODY_LIMIT_BYTES: usize = 64 * 1024;
 
+/// Wall-clock budget for a single request. A handler that outruns this (a
+/// wedged DB call, a pathological input) has its response replaced with a
+/// `408`, so a slow dependency cannot pin a connection open indefinitely.
+pub const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// The cross-cutting hardening stack applied to every route.
 ///
 /// `.layer()` applies bottom-to-top, so the calls read inner-to-outer: the
