@@ -11,10 +11,9 @@
 # Build:  docker build -t kora-2fa .
 # Run:    docker compose up   (brings up postgres + this service)
 #
-# rust-toolchain.toml tracks the `stable` channel, so the build image follows
-# the latest stable 1.x. Pin RUST_VERSION to a specific minor (e.g. 1.90) for
-# byte-for-byte reproducible builds.
-ARG RUST_VERSION=1
+# rust-toolchain.toml tracks the `stable` channel; this pins the build image to
+# a concrete minor for reproducibility. Bump it when CI's stable moves ahead.
+ARG RUST_VERSION=1.98
 
 # ── base ──────────────────────────────────────────────────────────────────────
 FROM rust:${RUST_VERSION}-slim-bookworm AS chef
