@@ -407,7 +407,9 @@ fn lockout_deadline(now: DateTime<Utc>) -> DateTime<Utc> {
     now + Duration::seconds(LOCKOUT_DURATION.as_secs() as i64)
 }
 
-/// Clear the failure counter and lock after any successful verification.
+/// Clear the failure counter and lock after any successful verification. Like
+/// `register_failure`, this is a single unconditional `UPDATE` — no
+/// read-then-write — so it needs no stale snapshot to act on.
 async fn clear_failures(exec: impl PgExecutor<'_>, user_id: &str) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "UPDATE two_factor_records SET failed_attempts = 0, locked_until = NULL WHERE user_id = $1",
