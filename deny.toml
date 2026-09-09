@@ -127,4 +127,12 @@ skip = [
     { crate = "windows_x86_64_gnu" },
     { crate = "windows_x86_64_gnullvm" },
     { crate = "windows_x86_64_msvc" },
+
+    # ── syn 1.x/2.x/3.x ─────────────────────────────────────────────────────
+    # syn 2.x (sqlx-macros, yoke-derive/synstructure) and syn 3.x (displaydoc,
+    # reached through the icu → idna → url chain under sqlx-core) coexist.
+    # Proc-macro dependency, build-time only — no code size or runtime cost.
+    # Drops out once displaydoc / the icu stack move to syn 2.x's successor
+    # line uniformly.
+    { crate = "syn" },
 ]
