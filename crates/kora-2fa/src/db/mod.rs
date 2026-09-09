@@ -13,6 +13,22 @@ use crate::config::Config;
 /// Embedded migrations from the workspace-root `migrations/` directory.
 pub static MIGRATOR: Migrator = sqlx::migrate!("../../migrations");
 
+/// Boot-time connect-retry budget. Even with a compose healthcheck, the
+/// service can still win the race to start before Postgres is accepting
+/// connections in orchestrated environments; [`connect_with_retry`] retries
+/// instead of exiting on the first refusal.
+pub const CONNECT_MAX_ATTEMPTS: u32 = 5;
+
+/// Delay before the second connect attempt; each further retry doubles it
+/// (1s, 2s, 4s, 8s across the default five attempts).
+pub const CONNECT_BASE_BACKOFF: Duration = Duration::from_secs(1);
+
+/// Exponential backoff before retry `attempt` (1-based): `base * 2^(attempt-1)`,
+/// with the exponent clamped so misuse cannot overflow.
+pub fn backoff_delay(base: Duration, attempt: u32) -> Duration {
+    base * 2u32.pow(attempt.saturating_sub(1).min(16))
+}
+
 /// Build the Postgres pool from configuration. Does not run migrations.
 pub async fn connect(config: &Config) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new()
