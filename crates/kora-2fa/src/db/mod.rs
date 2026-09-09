@@ -146,4 +146,36 @@ mod tests {
         assert_eq!(CONNECT_MAX_ATTEMPTS, 5);
         assert_eq!(CONNECT_BASE_BACKOFF, Duration::from_secs(1));
     }
+
+    /// Points at a port nothing listens on, with a short acquire timeout so
+    /// each attempt fails fast.
+    fn unreachable_db_config() -> Config {
+        Config {
+            database_url: "postgresql://x:x@127.0.0.1:1/none".to_owned(),
+            db_pool_min: 0,
+            db_pool_max: 1,
+            db_pool_acquire_timeout: Duration::from_millis(50),
+            pool_stats_enabled: false,
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            jwt_secret: "unused".to_owned(),
+            totp_encryption_key: [0u8; 32],
+            session_token_ttl: Duration::from_secs(900),
+        }
+    }
+
+    #[tokio::test]
+    async fn connect_with_backoff_gives_up_after_the_attempt_budget() {
+        let started = std::time::Instant::now();
+        let result =
+            connect_with_backoff(&unreachable_db_config(), 3, Duration::from_millis(20)).await;
+        let elapsed = started.elapsed();
+
+        assert!(result.is_err(), "an unreachable DB must not succeed");
+        // Three attempts means two backoffs (20ms + 40ms), so the call
+        // cannot have bailed after a single try.
+        assert!(
+            elapsed >= Duration::from_millis(60),
+            "expected the loop to sleep between retries, took {elapsed:?}"
+        );
+    }
 }
