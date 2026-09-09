@@ -100,8 +100,19 @@ jobs:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
+
       # Report-only for now: this run establishes the number that kora-app's
       # "100% function coverage / well-tested" claim is measured against. No
       # threshold gate yet — see ASSUMPTIONS.md §22.
-      - name: Measure coverage
-        run: cargo llvm-cov --workspace --all-targets --summary-only
+      - name: Run tests under instrumentation
+        run: cargo llvm-cov --no-report --workspace --all-targets
+
+      - name: Coverage summary
+        run: |
+          {
+            echo '### Coverage'
+            echo
+            echo '```'
+            cargo llvm-cov report --summary-only
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
