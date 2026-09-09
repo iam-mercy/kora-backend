@@ -26,6 +26,8 @@ services:
       dockerfile: Dockerfile
     image: kora-2fa:local
     container_name: kora-2fa
+    ports:
+      - "8080:8080"
 
 volumes:
   kora_pgdata:
