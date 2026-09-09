@@ -3,3 +3,9 @@
 .env
 *.pem
 *.key
+
+# Local coverage runs (CI publishes these as an artifact, never commits them).
+/lcov.info
+/coverage.json
+/target/llvm-cov
+/target/llvm-cov-target
