@@ -81,6 +81,14 @@ pub async fn connect_with_backoff(
     unreachable!("the loop returns on the final attempt")
 }
 
+/// [`connect_with_backoff`] with the default boot budget
+/// ([`CONNECT_MAX_ATTEMPTS`] / [`CONNECT_BASE_BACKOFF`]). This is what the
+/// binary calls at startup so a not-yet-ready Postgres delays the boot
+/// instead of killing it.
+pub async fn connect_with_retry(config: &Config) -> Result<PgPool, sqlx::Error> {
+    connect_with_backoff(config, CONNECT_MAX_ATTEMPTS, CONNECT_BASE_BACKOFF).await
+}
+
 /// Apply any pending migrations.
 pub async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::migrate::MigrateError> {
     MIGRATOR.run(pool).await
