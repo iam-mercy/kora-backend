@@ -109,4 +109,22 @@ deny = []
 # Duplicate-version allowances. Each entry is a crate we currently cannot
 # collapse to one version because the copies come from independent upstreams
 # pinning different majors. All are build-time or weightless on our targets.
-skip = []
+skip = [
+    # ── The windows-sys import-library stack ─────────────────────────────────
+    # Three generations of windows-sys are in the lock: 0.48 (via sqlx'
+    # `etcetera`), 0.52 (via `ring`, pulled by rustls and jsonwebtoken), and
+    # 0.61 (newer crates). Each drags its own `windows-targets` and the matching
+    # per-arch `windows_*` stub import libraries. None of it compiles for our
+    # Linux release/runtime targets — it is `cfg(windows)`-gated dead weight in
+    # this build — so collapsing it buys nothing. Revisit when sqlx and ring
+    # converge on one windows-sys major.
+    { crate = "windows-sys" },
+    { crate = "windows-targets" },
+    { crate = "windows_aarch64_gnullvm" },
+    { crate = "windows_aarch64_msvc" },
+    { crate = "windows_i686_gnu" },
+    { crate = "windows_i686_msvc" },
+    { crate = "windows_x86_64_gnu" },
+    { crate = "windows_x86_64_gnullvm" },
+    { crate = "windows_x86_64_msvc" },
+]
