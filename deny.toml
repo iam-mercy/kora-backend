@@ -1,0 +1,164 @@
+# cargo-deny — supply-chain policy for kora-backend.
+#
+# Enforced in CI by the `cargo-deny` job in .github/workflows/ci.yml, which
+# runs `cargo deny check` (advisories + bans + licenses + sources). Every
+# finding on the current dependency graph is enumerated below with the reason
+# it is accepted, so a *new* advisory, disallowed licence, duplicate crate, or
+# non-crates.io source is what turns the job red. Run `cargo deny check`
+# locally before touching a dependency.
+
+[graph]
+# Resolve the crate graph with every feature on, so the policy sees the same
+# dependency set the sqlx macros and the release build pull in.
+all-features = true
+
+[output]
+feature-depth = 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Advisories — the RUSTSEC database
+# ─────────────────────────────────────────────────────────────────────────────
+[advisories]
+version = 2
+db-urls = ["https://github.com/rustsec/advisory-db"]
+
+# A crate can be yanked upstream with no change on our side, which would turn
+# an unrelated PR red. Treat it as a warning and chase it deliberately rather
+# than letting it block the queue.
+yanked = "warn"
+
+ignore = [
+    # Intentionally empty.
+    #
+    # `cargo audit` used to flag RUSTSEC-2023-0071 (`rsa` "Marvin Attack"
+    # timing side-channel) because `rsa` 0.9.x sits in Cargo.lock as a
+    # transitive of `sqlx-mysql`. That crate never activates in this
+    # Postgres-only build — `cargo tree -i rsa` reports nothing — so
+    # cargo-deny's graph-based check does not see it and no ignore is needed.
+    #
+    # If a future dependency change pulls `rsa` into the real graph this check
+    # will start failing. Add the ignore back *here*, with a fresh rationale
+    # and a pointer to ASSUMPTIONS.md §15, rather than reaching for a blanket
+    # suppression.
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sources — where crates are allowed to come from
+# ─────────────────────────────────────────────────────────────────────────────
+[sources]
+# Everything must resolve from crates.io. No git dependencies, no private or
+# mirror registries. A `git = "..."` dep in a Cargo.toml fails this check.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Licenses
+# ─────────────────────────────────────────────────────────────────────────────
+[licenses]
+version = 2
+confidence-threshold = 0.9
+
+# SPDX ids accepted without individual review. Every entry is an OSI-approved
+# permissive licence or a public-domain-equivalent dedication — no copyleft
+# beyond file-scoped MPL, which is not present in the current graph and so is
+# deliberately not listed. Adding an id here is a policy change: justify it in
+# the commit message.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+]
+
+# Per-crate license exceptions. Narrower than adding the id to `allow`: only
+# the named crate, at any version, may carry the listed licence.
+[[licenses.exceptions]]
+# webpki-roots bundles Mozilla's root CA certificate set, which Mozilla
+# distributes under CDLA-Permissive-2.0 — a permissive *data* licence (no
+# copyleft, no patent-retaliation clause). It covers the certificate data, not
+# the crate's ~30 lines of Rust. sqlx pulls it in for rustls TLS to Postgres.
+# One entry covers both the 0.26.x and 1.0.x copies in the graph.
+name = "webpki-roots"
+allow = ["CDLA-Permissive-2.0"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bans — banned crates and duplicate versions
+# ─────────────────────────────────────────────────────────────────────────────
+[bans]
+# One version of each crate in the graph. A second copy fails CI; if it is
+# genuinely unavoidable (an upstream pins an old major), add it to `skip`
+# below with the reason. Deleting a `skip` line and having CI stay green is
+# the signal that the duplication is gone.
+multiple-versions = "deny"
+
+# No `version = "*"` dependencies.
+wildcards = "deny"
+
+# Show the full dependency path for every duplicate, so a new one is quick to
+# trace back to the crate that introduced it.
+highlight = "all"
+
+# Crates that must never appear in the graph. Empty today; this is where a
+# known-bad or unwanted crate (an unmaintained parser, a duplicate TLS stack)
+# gets pinned with a reason.
+deny = []
+
+# Duplicate-version allowances. Each entry is a crate we currently cannot
+# collapse to one version because the copies come from independent upstreams
+# pinning different majors. All are build-time or weightless on our targets.
+skip = [
+    # ── The windows-sys import-library stack ─────────────────────────────────
+    # Three generations of windows-sys are in the lock: 0.48 (via sqlx'
+    # `etcetera`), 0.52 (via `ring`, pulled by rustls and jsonwebtoken), and
+    # 0.61 (newer crates). Each drags its own `windows-targets` and the matching
+    # per-arch `windows_*` stub import libraries. None of it compiles for our
+    # Linux release/runtime targets — it is `cfg(windows)`-gated dead weight in
+    # this build — so collapsing it buys nothing. Revisit when sqlx and ring
+    # converge on one windows-sys major.
+    { crate = "windows-sys" },
+    { crate = "windows-targets" },
+    { crate = "windows_aarch64_gnullvm" },
+    { crate = "windows_aarch64_msvc" },
+    { crate = "windows_i686_gnu" },
+    { crate = "windows_i686_msvc" },
+    { crate = "windows_x86_64_gnu" },
+    { crate = "windows_x86_64_gnullvm" },
+    { crate = "windows_x86_64_msvc" },
+
+    # ── syn 1.x/2.x/3.x ─────────────────────────────────────────────────────
+    # syn 2.x (sqlx-macros, yoke-derive/synstructure) and syn 3.x (displaydoc,
+    # reached through the icu → idna → url chain under sqlx-core) coexist.
+    # Proc-macro dependency, build-time only — no code size or runtime cost.
+    # Drops out once displaydoc / the icu stack move to syn 2.x's successor
+    # line uniformly.
+    { crate = "syn" },
+
+    # ── The rand 0.8 / 0.9 split ────────────────────────────────────────────
+    # rand 0.8 is a direct dependency (backup-code generation) and is also
+    # pulled by sqlx-postgres; rand 0.9 comes in through totp-rs. rand_core
+    # and rand_chacha fork the same way (0.6/0.3 under the 0.8 line, 0.9 under
+    # the 0.9 line). Collapsible once totp-rs releases on rand 0.9-final and
+    # sqlx follows — or once our own direct dep moves to 0.9, which is a
+    # deliberate change, not a lockfile bump.
+    { crate = "rand" },
+    { crate = "rand_core" },
+    { crate = "rand_chacha" },
+
+    # ── getrandom 0.2 / 0.3 ────────────────────────────────────────────────
+    # Same root cause as the rand split: getrandom 0.2 sits under rand_core
+    # 0.6 (aes-gcm's crypto-common), getrandom 0.3 under rand_core 0.9
+    # (totp-rs). Resolves with the rand family.
+    { crate = "getrandom" },
+
+    # ── hashbrown 0.15 / 0.17 ──────────────────────────────────────────────
+    # Both reached only through sqlx-core: 0.15 via hashlink, 0.17 via
+    # indexmap. One sqlx dependency bump away from collapsing; nothing we
+    # control. Small, and it is already linked once for the std HashMap impl.
+    { crate = "hashbrown" },
+]

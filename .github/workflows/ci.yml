@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege by default; the image-scan job widens its own grant so it
+# can push SARIF to code scanning.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   # Compile-time-checked queries resolve against the committed .sqlx cache;
@@ -59,12 +64,141 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-targets
 
-  audit:
-    name: cargo audit
+  cargo-deny:
+    name: cargo-deny
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Prebuilt binary + cached advisory DB; no toolchain build needed.
+      # Runs all four checks (advisories, bans, licenses, sources) against
+      # deny.toml. Every current finding is enumerated there with a rationale,
+      # so this is green today and a *new* violation is what turns it red.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    # Same Postgres service as `test`: the integration and hardening suites
+    # need a real database, and #[sqlx::test] forks a per-test DB off it.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
-      - run: cargo install --locked cargo-audit
-      - run: cargo audit
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      # Report-only for now: this run establishes the number that kora-app's
+      # "100% function coverage / well-tested" claim is measured against. No
+      # threshold gate yet — see ASSUMPTIONS.md §22.
+      - name: Run tests under instrumentation
+        run: cargo llvm-cov --no-report --workspace --all-targets
+
+      - name: Coverage summary
+        run: |
+          {
+            echo '### Coverage'
+            echo
+            echo '```'
+            cargo llvm-cov report --summary-only
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Coverage reports
+        run: |
+          cargo llvm-cov report --lcov --output-path lcov.info
+          cargo llvm-cov report --json --output-path coverage.json
+          lines=$(jq -r '.data[0].totals.lines.percent' coverage.json)
+          funcs=$(jq -r '.data[0].totals.functions.percent' coverage.json)
+          printf 'Lines: %.2f%%  Functions: %.2f%%\n' "$lines" "$funcs"
+          printf -- '- **Lines:** %.2f%%  •  **Functions:** %.2f%%\n' "$lines" "$funcs" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            lcov.info
+            coverage.json
+          if-no-files-found: error
+
+  image:
+    name: image scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # github/codeql-action/upload-sarif
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Build the same multi-stage image the release uses, load it into the
+      # local daemon so the scan step can address it by tag. GHA layer cache
+      # keeps the cargo-chef dependency layer warm between runs.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: kora-2fa:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Report-only for now (exit-code: 0). Prints a HIGH/CRITICAL table to the
+      # log; does not fail the job. `ignore-unfixed` hides CVEs with no
+      # available fix — the distroless base carries a handful of those and we
+      # can't act on them from here. See ASSUMPTIONS.md §23.
+      # Pin to a released tag (ideally a commit SHA); trivy-action tags were
+      # re-cut after a 2025 supply-chain incident.
+      - name: Trivy scan (table)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: kora-2fa:ci
+          scan-type: image
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "0"
+
+      # Machine-readable copy of the same scan for the run's artifacts and,
+      # where the repo has code scanning enabled, the Security tab.
+      - name: Trivy scan (SARIF)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: kora-2fa:ci
+          scan-type: image
+          format: sarif
+          output: trivy-results.sarif
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "0"
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+        # Code scanning isn't enabled on every repo / plan; don't fail CI over it.
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trivy
+          path: trivy-results.sarif
+          if-no-files-found: error
