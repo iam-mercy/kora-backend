@@ -156,8 +156,13 @@ lockout, using two columns on `two_factor_records`
 added in Phase 1.
 
 - A failed TOTP check on `/2fa/verify` or `/2fa/login` increments
-  `failed_attempts`.
-- When `failed_attempts` reaches 5, `locked_until = now() + 15 min`.
+  `failed_attempts`. The increment happens **in a single SQL `UPDATE`**
+  (`failed_attempts = failed_attempts + 1`), never a read-then-write in
+  application code: parallel wrong guesses against the same `user_id` must
+  not be able to lose an increment and race around the lock.
+- When `failed_attempts` reaches 5, `locked_until = now() + 15 min`. This is
+  decided in the same statement as the increment, so the attempt that trips
+  the lock is the one that reports **423**.
 - While `now() < locked_until`, `/2fa/verify` and `/2fa/login` short-circuit
   with **423**.
 - Any successful verification resets `failed_attempts = 0`,
