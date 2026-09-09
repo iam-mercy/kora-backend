@@ -53,3 +53,5 @@ RUN strip target/release/kora-2fa
 # distroless/cc carries glibc + libgcc + ca-certificates and nothing else — no
 # shell, no package manager. Its :nonroot tag runs as uid 65532.
 FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
+WORKDIR /app
+COPY --from=builder /app/target/release/kora-2fa /usr/local/bin/kora-2fa
