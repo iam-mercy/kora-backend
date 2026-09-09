@@ -18,6 +18,7 @@ use axum::Router;
 use sqlx::PgPool;
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::config::Config;
@@ -82,6 +83,12 @@ where
 {
     router
         .layer(TraceLayer::new_for_http())
+        // Bound how long any single request may run; a handler that outruns
+        // it gets a `408` in place of its response.
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ))
         // Reject bodies larger than the cap before a handler buffers them.
         .layer(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT_BYTES))
         // Outermost: a handler panic becomes the same `{error, message}`
