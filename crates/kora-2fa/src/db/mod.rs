@@ -39,6 +39,48 @@ pub async fn connect(config: &Config) -> Result<PgPool, sqlx::Error> {
         .await
 }
 
+/// Like [`connect`], but retry up to `max_attempts` times with exponential
+/// backoff ([`backoff_delay`]) before surfacing the last error. Every failed
+/// attempt is logged; the caller decides what a final failure means.
+pub async fn connect_with_backoff(
+    config: &Config,
+    max_attempts: u32,
+    base_backoff: Duration,
+) -> Result<PgPool, sqlx::Error> {
+    let max_attempts = max_attempts.max(1);
+    for attempt in 1..=max_attempts {
+        match connect(config).await {
+            Ok(pool) => {
+                if attempt > 1 {
+                    tracing::info!(attempt, "database connection established after retry");
+                }
+                return Ok(pool);
+            }
+            Err(err) if attempt == max_attempts => {
+                tracing::error!(
+                    attempt,
+                    max_attempts,
+                    error = %err,
+                    "database unreachable after the final attempt; giving up"
+                );
+                return Err(err);
+            }
+            Err(err) => {
+                let retry_in = backoff_delay(base_backoff, attempt);
+                tracing::warn!(
+                    attempt,
+                    max_attempts,
+                    ?retry_in,
+                    error = %err,
+                    "database connect failed; retrying"
+                );
+                tokio::time::sleep(retry_in).await;
+            }
+        }
+    }
+    unreachable!("the loop returns on the final attempt")
+}
+
 /// Apply any pending migrations.
 pub async fn run_migrations(pool: &PgPool) -> Result<(), sqlx::migrate::MigrateError> {
     MIGRATOR.run(pool).await
