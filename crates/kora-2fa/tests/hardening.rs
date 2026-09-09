@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 use http_body_util::BodyExt;
 use serde_json::Value;
@@ -94,4 +94,39 @@ async fn handler_panic_becomes_the_error_envelope() {
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(body["error"], "INTERNAL");
     assert_eq!(body["message"], "An internal error occurred");
+}
+
+async fn echo(body: String) -> String {
+    body
+}
+
+/// With no `content-length` to pre-check, the cap still trips while the body
+/// is being read: the handler never sees more than the limit.
+#[tokio::test]
+async fn oversized_streamed_body_trips_the_limit_mid_read() {
+    let app = hardened(Router::new().route("/echo", post(echo)));
+    let oversized = "x".repeat(REQUEST_BODY_LIMIT_BYTES + 1);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/echo")
+        .body(Body::from(oversized))
+        .unwrap();
+
+    let (status, _) = send(app, req).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+/// A body at exactly the cap is accepted.
+#[tokio::test]
+async fn body_at_the_cap_is_accepted() {
+    let app = hardened(Router::new().route("/echo", post(echo)));
+    let at_cap = "x".repeat(REQUEST_BODY_LIMIT_BYTES);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/echo")
+        .body(Body::from(at_cap))
+        .unwrap();
+
+    let (status, _) = send(app, req).await;
+    assert_eq!(status, StatusCode::OK);
 }
