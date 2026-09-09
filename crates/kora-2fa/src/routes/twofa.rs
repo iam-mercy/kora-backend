@@ -374,7 +374,10 @@ async fn register_failure(
     .fetch_one(exec)
     .await?;
 
-    let locked = row.failed_attempts >= MAX_FAILED_ATTEMPTS;
+    // Decide 423-vs-401 from the row the UPDATE actually produced, not from
+    // any pre-computed flag off the pre-failure snapshot: `locked_until` is
+    // now exactly what the CASE above settled on.
+    let locked = row.locked_until.is_some_and(|until| until > now);
     Ok(failure_error(locked))
 }
 
