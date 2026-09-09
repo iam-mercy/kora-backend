@@ -539,7 +539,7 @@ async fn concurrent_sub_threshold_failures_are_all_counted(pool: PgPool) {
     );
     assert_eq!(failed_attempts(&pool, user).await, N as i32);
 
-    // Still unlocked: a valid token is accepted.
+    // Still unlocked: a valid token is accepted, and it clears the counter.
     let (status, _) = call(
         &app,
         post(
@@ -550,4 +550,5 @@ async fn concurrent_sub_threshold_failures_are_all_counted(pool: PgPool) {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(failed_attempts(&pool, user).await, 0);
 }
