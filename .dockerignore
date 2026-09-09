@@ -24,3 +24,9 @@ docs/
 Dockerfile
 .dockerignore
 docker-compose.yml
+
+# Deliberately NOT ignored — the build stage needs all of these:
+#   Cargo.toml, Cargo.lock, crates/   — the workspace + sources
+#   migrations/                       — embedded by sqlx::migrate! at compile time
+#   .sqlx/                            — offline query cache for SQLX_OFFLINE=true
+#   build.rs, rust-toolchain.toml     — build script + toolchain pin
