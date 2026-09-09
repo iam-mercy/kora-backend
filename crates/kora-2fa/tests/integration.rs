@@ -444,3 +444,36 @@ async fn lockout_counter_starts_at_zero(pool: PgPool) {
     activate(&app, user).await;
     assert_eq!(failed_attempts(&pool, user).await, 0);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
+    const N: usize = 5;
+    let app = app(pool.clone());
+    let user = "race_user";
+    activate(&app, user).await;
+    let auth = bearer(user);
+
+    // Fire N wrong-TOTP verifies at the same user_id concurrently, the way a
+    // parallel guessing attack would, rather than one after another.
+    let mut set = tokio::task::JoinSet::new();
+    for _ in 0..N {
+        let (app, auth, user) = (app.clone(), auth.clone(), user.to_owned());
+        set.spawn(async move {
+            call(
+                &app,
+                post(
+                    "/2fa/verify",
+                    Some(&auth),
+                    json!({ "user_id": user, "token": "000000" }),
+                ),
+            )
+            .await
+            .0
+        });
+    }
+    let mut statuses = Vec::new();
+    while let Some(res) = set.join_next().await {
+        statuses.push(res.unwrap());
+    }
+    assert_eq!(statuses.len(), N);
+}
