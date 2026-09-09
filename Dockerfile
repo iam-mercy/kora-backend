@@ -59,11 +59,11 @@ ENV SQLX_OFFLINE=true
 # Now the real sources. migrations/ is embedded into the binary by
 # sqlx::migrate! here, so the runtime image won't need it.
 COPY . .
+# Build, then strip debug symbols in the same layer so they never land in an
+# intermediate image.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    cargo build --release --package kora-2fa --locked
-
-# Drop debug symbols before the binary is carried into the runtime image.
-RUN strip target/release/kora-2fa
+    cargo build --release --package kora-2fa --locked \
+    && strip target/release/kora-2fa
 
 # ── runtime ───────────────────────────────────────────────────────────────────
 # distroless/cc carries glibc + libgcc + ca-certificates and nothing else — no
