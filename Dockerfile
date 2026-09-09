@@ -9,7 +9,9 @@
 #   runtime  — distroless/cc image carrying only the stripped binary
 #
 # Build:  docker build -t kora-2fa .
-# Run:    docker compose up   (brings up postgres + this service)
+# Run:    docker compose up   (Postgres + this service; serves :8080). The
+#         service reaches Postgres through the host's published :5432 — see
+#         docker-compose.yml and ASSUMPTIONS.md #17.
 #
 # rust-toolchain.toml tracks the `stable` channel; this pins the build image to
 # a concrete minor for reproducibility. Bump it when CI's stable moves ahead.
