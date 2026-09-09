@@ -522,3 +522,43 @@ and deleted as the ecosystem converges.
 
 Reconcile job names / policy with `kora-app`'s own workflows when that repo
 is in reach (same caveat as §15).
+
+---
+
+## 22. Coverage measurement (`cargo-llvm-cov`), report-only
+
+kora-app's brief describes the service as well-tested and cites 100% function
+coverage, but Phase 1 CI had no coverage measurement — "well-tested" was a
+claim with no number behind it.
+
+**Decision:** add a `coverage` CI job running `cargo llvm-cov` (LLVM
+source-based instrumentation, via `llvm-tools-preview` +
+`taiki-e/install-action`) over `--workspace --all-targets`, against the same
+Postgres 16 service container the `test` job uses. It publishes:
+
+- the line / function / region summary table to `$GITHUB_STEP_SUMMARY`,
+- a one-line `Lines: x%  Functions: y%` headline, extracted from the JSON
+  report with `jq`,
+- `lcov.info` + `coverage.json` as the `coverage` artifact.
+
+**Report-only, deliberately.** No `--fail-under-lines` / `--fail-under-functions`
+gate yet:
+
+- The first CI run is what establishes the real number. Setting a threshold
+  before seeing it would either be guessed too low to mean anything or too
+  high and immediately red.
+- A line-coverage floor makes unrelated refactors that move code around fail
+  CI for reasons reviewers can't act on quickly.
+- `--all-targets` coverage does not include doctests (that needs a nightly
+  toolchain), so the figure is a floor, not the whole picture.
+
+**How to promote it to a gate:** once a few runs show a stable number, add
+`--fail-under-lines <floor>` (a few points below the observed value, as
+headroom) to the `cargo llvm-cov` invocation, and record the chosen floor
+here. Function coverage can get its own `--fail-under-functions` if the
+100% claim is meant to be enforced rather than just reported.
+
+**Gap:** the job re-compiles the workspace with instrumentation rather than
+reusing the `test` job's artifacts, so it roughly doubles that job's wall
+time. Acceptable for a small workspace; revisit (e.g. `cargo-nextest` +
+a shared instrumented build) if CI time becomes a problem.
