@@ -133,8 +133,21 @@ concurrency regression test that fires parallel wrong-TOTP attempts at one
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml): `cargo fmt --check`,
-`cargo clippy -- -D warnings`, `cargo test` with a Postgres service
-container, and `cargo audit`. `fmt` and `clippy` build offline against the
-committed `.sqlx/` query cache — regenerate it with `cargo sqlx prepare
---workspace` after any query or schema change (see `ASSUMPTIONS.md` §15).
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+| Job | What it runs |
+|---|---|
+| `rustfmt` | `cargo fmt --all --check` |
+| `clippy` | `cargo clippy --workspace --all-targets -- -D warnings` |
+| `test` | `cargo test --workspace --all-targets` against a Postgres 16 service container |
+| `cargo-deny` | [`cargo deny check`](deny.toml) — advisories, licenses, bans (duplicate versions), sources. Replaces the old `cargo audit` job (`ASSUMPTIONS.md` §21) |
+
+`fmt` and `clippy` build offline against the committed `.sqlx/` query
+cache — regenerate it with `cargo sqlx prepare --workspace` after any query
+or schema change (see `ASSUMPTIONS.md` §15).
+
+Every `cargo-deny` finding on today's dependency graph is written into
+[`deny.toml`](deny.toml) as a commented exception, so the job is green now
+and it is a *new* advisory / disallowed license / duplicate crate / git
+dependency that turns it red. Run `cargo deny check` locally before changing
+a dependency.
