@@ -514,3 +514,32 @@ async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
     .await;
     assert_eq!(status, StatusCode::LOCKED);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn concurrent_sub_threshold_failures_are_all_counted(pool: PgPool) {
+    // Fewer than MAX_FAILED_ATTEMPTS concurrent failures: the lock must not
+    // trip, which isolates "no increment is lost" from the lockout logic.
+    const N: usize = 3;
+    let app = app(pool.clone());
+    let user = "race_user_sub";
+    let secret = activate(&app, user).await;
+
+    let statuses = race_wrong_totp(&app, user, N).await;
+    assert!(
+        statuses.iter().all(|s| *s == StatusCode::UNAUTHORIZED),
+        "no lock at N < MAX, so every guess is a plain 401: {statuses:?}"
+    );
+    assert_eq!(failed_attempts(&pool, user).await, N as i32);
+
+    // Still unlocked: a valid token is accepted.
+    let (status, _) = call(
+        &app,
+        post(
+            "/2fa/verify",
+            Some(&bearer(user)),
+            json!({ "user_id": user, "token": totp_code(&secret, 0) }),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
