@@ -10,3 +10,9 @@ ARG RUST_VERSION=1
 # ── base ──────────────────────────────────────────────────────────────────────
 FROM rust:${RUST_VERSION}-slim-bookworm AS chef
 WORKDIR /app
+
+# `rust:slim` ships no C toolchain; `ring` (pulled in via sqlx' rustls TLS)
+# needs a C compiler and linker to build.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential pkg-config \
+    && rm -rf /var/lib/apt/lists/*
