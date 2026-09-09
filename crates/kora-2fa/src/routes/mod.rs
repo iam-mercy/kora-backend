@@ -17,6 +17,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use sqlx::PgPool;
 use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::config::Config;
@@ -76,6 +77,8 @@ where
 {
     router
         .layer(TraceLayer::new_for_http())
+        // Reject bodies larger than the cap before a handler buffers them.
+        .layer(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT_BYTES))
         // Outermost: a handler panic becomes the same `{error, message}`
         // 500 envelope every other error path returns, instead of a dropped
         // connection.
