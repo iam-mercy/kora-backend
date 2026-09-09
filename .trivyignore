@@ -1,0 +1,18 @@
+# Trivy vulnerability ignores for the kora-2fa container image.
+#
+# Read by the `image` CI job (see .github/workflows/ci.yml) and by a local
+# `trivy image kora-2fa` run. One CVE id per line; add a comment above each
+# entry saying WHY it is ignored and, if possible, an expiry date, e.g.:
+#
+#   # CVE-2024-XXXXX — <package> <version>. <why it doesn't apply / when it
+#   #   gets fixed>. Recheck after 2026-01-01.
+#   CVE-2024-XXXXX
+#
+# Empty on purpose. The scan is report-only today (exit-code 0), so nothing
+# needs suppressing to keep CI green — an entry here is a deliberate,
+# documented risk acceptance, not a way to quiet the build. See
+# ASSUMPTIONS.md §23.
+#
+# Note: the CI scan already passes `--ignore-unfixed`, so CVEs with no
+# upstream fix never reach this file — only fixable findings we are choosing
+# to defer belong here.
