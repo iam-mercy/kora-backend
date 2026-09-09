@@ -131,6 +131,21 @@ enable → verify → login → lockout → recover → audit-log journey, plus 
 concurrency regression test that fires parallel wrong-TOTP attempts at one
 `user_id` and checks none are lost.
 
+### Coverage
+
+```sh
+cargo install cargo-llvm-cov                 # one-time
+docker compose up -d postgres
+export DATABASE_URL=postgresql://kora:kora@localhost:5432/kora_2fa
+cargo llvm-cov --workspace --all-targets     # summary table
+cargo llvm-cov --workspace --all-targets --html   # target/llvm-cov/html/index.html
+```
+
+CI's `coverage` job runs the same thing against its Postgres container and
+publishes the line / function numbers to the run's summary page plus an
+`lcov.info` artifact. It is **report-only** — there is no minimum-coverage
+gate (`ASSUMPTIONS.md` §22).
+
 ## CI
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
@@ -141,6 +156,7 @@ concurrency regression test that fires parallel wrong-TOTP attempts at one
 | `clippy` | `cargo clippy --workspace --all-targets -- -D warnings` |
 | `test` | `cargo test --workspace --all-targets` against a Postgres 16 service container |
 | `cargo-deny` | [`cargo deny check`](deny.toml) — advisories, licenses, bans (duplicate versions), sources. Replaces the old `cargo audit` job (`ASSUMPTIONS.md` §21) |
+| `coverage` | `cargo llvm-cov` against the Postgres service container; line / function % to the job summary, `lcov.info` + `coverage.json` as an artifact. Report-only (`ASSUMPTIONS.md` §22) |
 
 `fmt` and `clippy` build offline against the committed `.sqlx/` query
 cache — regenerate it with `cargo sqlx prepare --workspace` after any query
