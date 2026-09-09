@@ -23,6 +23,15 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// unavailable at build time.
 pub const GIT_SHA: &str = env!("GIT_SHA");
 
+/// The placeholder `JWT_SECRET` shipped in `.env.example`. Running with this
+/// value outside local development is a security hole — see
+/// [`Config::example_secrets_in_use`].
+pub const EXAMPLE_JWT_SECRET: &str = "dev-only-insecure-change-me";
+
+/// The placeholder `TOTP_ENCRYPTION_KEY` from `.env.example`, decoded to its
+/// 32 raw bytes (base64 `MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=`).
+pub const EXAMPLE_TOTP_ENCRYPTION_KEY: [u8; 32] = *b"0123456789abcdef0123456789abcdef";
+
 /// Fully validated service configuration.
 #[derive(Clone)]
 pub struct Config {
@@ -95,7 +104,7 @@ impl Config {
 
         let session_token_ttl = Duration::from_secs(parse_or("SESSION_TOKEN_TTL_SECS", 900)?);
 
-        Ok(Self {
+        let config = Self {
             database_url,
             db_pool_min,
             db_pool_max,
@@ -105,12 +114,38 @@ impl Config {
             jwt_secret,
             totp_encryption_key,
             session_token_ttl,
-        })
+        };
+
+        for var in config.example_secrets_in_use() {
+            tracing::warn!(
+                env_var = var,
+                "SECURITY: {var} is set to the .env.example placeholder value — \
+                 generate a real secret before deploying; this build must not \
+                 run outside local development with this value"
+            );
+        }
+
+        Ok(config)
     }
 
     /// `tracing` filter directive: `RUST_LOG` if set, else a sensible default.
     pub fn log_filter() -> String {
         std::env::var("RUST_LOG").unwrap_or_else(|_| "info,kora_2fa=info".to_owned())
+    }
+
+    /// Names of the secret env vars still set to their `.env.example`
+    /// placeholder value. Empty for a correctly provisioned deployment.
+    /// [`Config::from_env`] calls this at boot and warns loudly for each hit
+    /// so a real deployment cannot silently ship the example secrets.
+    pub fn example_secrets_in_use(&self) -> Vec<&'static str> {
+        let mut flagged = Vec::new();
+        if self.jwt_secret == EXAMPLE_JWT_SECRET {
+            flagged.push("JWT_SECRET");
+        }
+        if self.totp_encryption_key == EXAMPLE_TOTP_ENCRYPTION_KEY {
+            flagged.push("TOTP_ENCRYPTION_KEY");
+        }
+        flagged
     }
 }
 
@@ -202,4 +237,66 @@ fn load_totp_key() -> Result<[u8; 32], ConfigError> {
         .as_slice()
         .try_into()
         .map_err(|_| ConfigError::KeyLength(decoded.len()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A `Config` with real, non-placeholder secrets.
+    fn sample_config() -> Config {
+        Config {
+            database_url: "postgresql://u:p@localhost/db".to_owned(),
+            db_pool_min: 1,
+            db_pool_max: 10,
+            db_pool_acquire_timeout: Duration::from_secs(30),
+            pool_stats_enabled: false,
+            bind_addr: "0.0.0.0:8080".parse().unwrap(),
+            jwt_secret: "a-real-provisioned-secret".to_owned(),
+            totp_encryption_key: [1u8; 32],
+            session_token_ttl: Duration::from_secs(900),
+        }
+    }
+
+    #[test]
+    fn real_secrets_are_not_flagged() {
+        assert!(sample_config().example_secrets_in_use().is_empty());
+    }
+
+    #[test]
+    fn placeholder_jwt_secret_is_flagged() {
+        let mut config = sample_config();
+        config.jwt_secret = EXAMPLE_JWT_SECRET.to_owned();
+        assert_eq!(config.example_secrets_in_use(), vec!["JWT_SECRET"]);
+    }
+
+    #[test]
+    fn placeholder_totp_key_is_flagged() {
+        let mut config = sample_config();
+        config.totp_encryption_key = EXAMPLE_TOTP_ENCRYPTION_KEY;
+        assert_eq!(config.example_secrets_in_use(), vec!["TOTP_ENCRYPTION_KEY"]);
+    }
+
+    #[test]
+    fn both_placeholders_are_flagged_together() {
+        let mut config = sample_config();
+        config.jwt_secret = EXAMPLE_JWT_SECRET.to_owned();
+        config.totp_encryption_key = EXAMPLE_TOTP_ENCRYPTION_KEY;
+        assert_eq!(
+            config.example_secrets_in_use(),
+            vec!["JWT_SECRET", "TOTP_ENCRYPTION_KEY"]
+        );
+    }
+
+    /// The decoded `EXAMPLE_TOTP_ENCRYPTION_KEY` constant must stay in lock
+    /// step with the base64 literal in `.env.example` — otherwise the guard
+    /// silently stops matching a deployment that copied that file verbatim.
+    #[test]
+    fn example_totp_key_matches_the_env_example_literal() {
+        const ENV_EXAMPLE_B64: &str = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(ENV_EXAMPLE_B64)
+            .expect("literal is valid base64");
+        assert_eq!(decoded.as_slice(), EXAMPLE_TOTP_ENCRYPTION_KEY);
+    }
 }

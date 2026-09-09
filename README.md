@@ -40,6 +40,15 @@ Every error response is the shared envelope
   columns — **no Redis** in Phase 1. The counter is incremented with a single
   atomic `UPDATE`, so parallel wrong guesses at one `user_id` can't race
   around the threshold.
+- **Router hardening** (`ASSUMPTIONS.md` §18): a caught handler panic returns
+  the same `{error, message}` `500` envelope as every other error path
+  instead of dropping the connection; request bodies are capped at 64 KiB
+  (`413` past that); a request that runs longer than 10 s is answered with
+  `408`.
+- **Boot-time guards**: startup logs a loud `WARN` if `JWT_SECRET` or
+  `TOTP_ENCRYPTION_KEY` still holds its `.env.example` placeholder value
+  (`ASSUMPTIONS.md` §19), and an unreachable Postgres is retried 5× with
+  exponential backoff before the process gives up (§20).
 
 The service verifies JWTs with a `JWT_SECRET` that is **not** in the
 authoritative env-var doc, along with three other added vars. Every such gap
@@ -61,8 +70,9 @@ crates/kora-2fa/           the service
     jwt.rs                 HS256 verify + session-token minting
     db/                    pool, migrator, request/response DTOs
     middleware/auth.rs     the AuthUser bearer extractor
-    routes/                health, twofa, recovery
+    routes/                health, twofa, recovery + the hardening layer stack
   tests/integration.rs     end-to-end tests against real Postgres
+  tests/hardening.rs       panic / body-cap / timeout tests (no database)
 migrations/                sqlx migrations
 docs/                      vendored openapi.yaml + environment-variables.md
 Dockerfile                 multi-stage build -> distroless runtime image

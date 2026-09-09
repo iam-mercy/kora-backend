@@ -8,16 +8,22 @@ pub mod health;
 pub mod recovery;
 pub mod twofa;
 
+use std::any::Any;
 use std::sync::Arc;
 
 use axum::http::HeaderMap;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use sqlx::PgPool;
+use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::config::Config;
 use crate::db::models::{AuditEvent, TwoFactorRow};
+use crate::error::AppError;
 
 /// State shared by every handler: configuration + the DB pool.
 #[derive(Clone)]
@@ -36,10 +42,10 @@ impl AppState {
 }
 
 /// Build the Phase 1 router: the eight in-scope endpoints from
-/// `docs/openapi.yaml`, behind a request-tracing layer. Everything is
+/// `docs/openapi.yaml`, behind the shared hardening stack. Everything is
 /// self-only bearer-authenticated except `/2fa/login` and `/health`.
 pub fn router(state: AppState) -> Router {
-    Router::new()
+    let endpoints = Router::new()
         .route("/health", get(health::health))
         .route("/2fa/enable", post(twofa::enable))
         .route("/2fa/disable", post(twofa::disable))
@@ -47,9 +53,67 @@ pub fn router(state: AppState) -> Router {
         .route("/2fa/login", post(twofa::login))
         .route("/2fa/recover", post(recovery::recover))
         .route("/2fa/recovery-log", get(recovery::recovery_log))
-        .route("/2fa/audit-log/{user_id}", get(recovery::audit_log))
+        .route("/2fa/audit-log/{user_id}", get(recovery::audit_log));
+
+    hardening_layers(endpoints).with_state(state)
+}
+
+/// Maximum accepted request-body size. Every Phase 1 endpoint takes a small
+/// JSON object (a `user_id`, an email, a 6-digit code); 64 KiB is far more
+/// than any legitimate call needs and caps memory a hostile caller can make
+/// the service buffer.
+pub const REQUEST_BODY_LIMIT_BYTES: usize = 64 * 1024;
+
+/// Wall-clock budget for a single request. A handler that outruns this (a
+/// wedged DB call, a pathological input) has its response replaced with a
+/// `408`, so a slow dependency cannot pin a connection open indefinitely.
+pub const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// The cross-cutting hardening stack applied to every route.
+///
+/// `.layer()` applies bottom-to-top, so the calls read inner-to-outer: the
+/// last one added is the outermost wrapper and sees the request first / the
+/// response last.
+///
+/// Generic over the router's state type so tests can drive the exact stack
+/// against a throwaway stateless router.
+pub fn hardening_layers<S>(router: Router<S>) -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    router
         .layer(TraceLayer::new_for_http())
-        .with_state(state)
+        // Bound how long any single request may run; a handler that outruns
+        // it gets a `408` in place of its response.
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ))
+        // Reject bodies larger than the cap before a handler buffers them.
+        .layer(RequestBodyLimitLayer::new(REQUEST_BODY_LIMIT_BYTES))
+        // Outermost: a handler panic becomes the same `{error, message}`
+        // 500 envelope every other error path returns, instead of a dropped
+        // connection.
+        .layer(CatchPanicLayer::custom(handle_panic))
+}
+
+/// Turn a caught handler panic into the standard `{error, message}` envelope
+/// (HTTP 500), identical to what [`AppError::internal`] renders. The panic
+/// payload is logged, never surfaced to the caller.
+fn handle_panic(err: Box<dyn Any + Send + 'static>) -> Response {
+    let detail = panic_message(err.as_ref());
+    AppError::internal(format!("handler panicked: {detail}")).into_response()
+}
+
+/// Best-effort recovery of a panic's message payload for the log line.
+fn panic_message(err: &(dyn Any + Send)) -> String {
+    if let Some(s) = err.downcast_ref::<&'static str>() {
+        (*s).to_owned()
+    } else if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".to_owned()
+    }
 }
 
 // ─── Cross-handler helpers ─────────────────────────────────────────────────
@@ -121,4 +185,27 @@ pub async fn insert_audit(
     .execute(exec)
     .await
     .map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn panic_message_reads_str_payload() {
+        let payload: Box<dyn Any + Send> = Box::new("boom");
+        assert_eq!(panic_message(payload.as_ref()), "boom");
+    }
+
+    #[test]
+    fn panic_message_reads_string_payload() {
+        let payload: Box<dyn Any + Send> = Box::new(String::from("kaboom"));
+        assert_eq!(panic_message(payload.as_ref()), "kaboom");
+    }
+
+    #[test]
+    fn panic_message_falls_back_for_other_payloads() {
+        let payload: Box<dyn Any + Send> = Box::new(42_i32);
+        assert_eq!(panic_message(payload.as_ref()), "unknown panic");
+    }
 }
