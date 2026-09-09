@@ -9,3 +9,6 @@
 /coverage.json
 /target/llvm-cov
 /target/llvm-cov-target
+
+# Local Trivy scan output.
+/trivy-results.sarif

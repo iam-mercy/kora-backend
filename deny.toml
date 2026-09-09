@@ -1,8 +1,11 @@
 # cargo-deny — supply-chain policy for kora-backend.
 #
-# Checked in CI by the `cargo-deny` job in .github/workflows/ci.yml. The job's
-# check list widens one section at a time as this file is filled in. Run
-# `cargo deny check` locally before touching a dependency.
+# Enforced in CI by the `cargo-deny` job in .github/workflows/ci.yml, which
+# runs `cargo deny check` (advisories + bans + licenses + sources). Every
+# finding on the current dependency graph is enumerated below with the reason
+# it is accepted, so a *new* advisory, disallowed licence, duplicate crate, or
+# non-crates.io source is what turns the job red. Run `cargo deny check`
+# locally before touching a dependency.
 
 [graph]
 # Resolve the crate graph with every feature on, so the policy sees the same

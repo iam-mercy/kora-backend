@@ -148,7 +148,8 @@ gate (`ASSUMPTIONS.md` §22).
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) — all jobs run in
+parallel on every push to `main` and every PR:
 
 | Job | What it runs |
 |---|---|
