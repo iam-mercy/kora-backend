@@ -51,6 +51,8 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    # The binary drains in-flight requests on SIGTERM; give it room to.
+    stop_grace_period: 15s
 
 volumes:
   kora_pgdata:
