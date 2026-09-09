@@ -1,4 +1,10 @@
 //! `/2fa/enable`, `/2fa/disable`, `/2fa/verify`, `/2fa/login`.
+//!
+//! The per-`user_id` lockout counter (`failed_attempts` / `locked_until`) is
+//! only ever mutated by single-statement `UPDATE`s here — `register_failure`
+//! increments and decides the lock in one query, `clear_failures` resets it
+//! in one query — so concurrent verify/login attempts serialise on the row
+//! instead of racing an application-level read-modify-write.
 
 use axum::extract::rejection::JsonRejection;
 use axum::extract::State;
