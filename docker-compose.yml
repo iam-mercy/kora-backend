@@ -27,6 +27,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Override on the CLI, e.g. `docker compose build --build-arg RUST_VERSION=1.99`.
+        RUST_VERSION: "1.98"
     image: kora-2fa:local
     container_name: kora-2fa
     ports:
