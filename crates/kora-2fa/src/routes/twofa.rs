@@ -350,23 +350,31 @@ async fn register_failure(
     record: &TwoFactorRow,
     now: DateTime<Utc>,
 ) -> Result<AppError, sqlx::Error> {
-    let attempts = record.failed_attempts + 1;
-    let locked = attempts >= MAX_FAILED_ATTEMPTS;
-    let locked_until = locked.then(|| lockout_deadline(now));
-
-    sqlx::query!(
+    // Increment and decide the lock in one statement. A read-modify-write in
+    // application code (fetch `failed_attempts`, add one, write it back) lets
+    // two concurrent wrong guesses against the same `user_id` read the same
+    // starting count and write the same value — one failure is lost and the
+    // MAX_FAILED_ATTEMPTS lock can be raced around indefinitely.
+    let row = sqlx::query!(
         r#"
         UPDATE two_factor_records
-        SET failed_attempts = $2, locked_until = $3, updated_at = now()
+        SET failed_attempts = failed_attempts + 1,
+            locked_until = CASE
+                WHEN failed_attempts + 1 >= $2 THEN $3
+                ELSE locked_until
+            END,
+            updated_at = now()
         WHERE user_id = $1
+        RETURNING failed_attempts, locked_until
         "#,
         record.user_id,
-        attempts,
-        locked_until,
+        MAX_FAILED_ATTEMPTS,
+        lockout_deadline(now),
     )
-    .execute(exec)
+    .fetch_one(exec)
     .await?;
 
+    let locked = row.failed_attempts >= MAX_FAILED_ATTEMPTS;
     Ok(failure_error(locked))
 }
 
