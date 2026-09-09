@@ -28,3 +28,11 @@ RUN cargo install cargo-chef --locked --version ${CARGO_CHEF_VERSION}
 FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
+
+# ── builder ───────────────────────────────────────────────────────────────────
+FROM chef AS builder
+
+# Compile every dependency first, from the recipe alone. This layer only busts
+# when the dependency set changes.
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --package kora-2fa --recipe-path recipe.json
