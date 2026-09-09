@@ -21,3 +21,10 @@ RUN apt-get update \
 # source edits don't trigger a full rebuild of every crate.
 ARG CARGO_CHEF_VERSION=0.1.68
 RUN cargo install cargo-chef --locked --version ${CARGO_CHEF_VERSION}
+
+# ── planner ───────────────────────────────────────────────────────────────────
+# Distil the workspace down to a dependency recipe. Only Cargo.* manifests
+# affect the output, so this layer is cheap to recompute.
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
