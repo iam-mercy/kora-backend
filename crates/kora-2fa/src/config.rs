@@ -269,4 +269,22 @@ mod tests {
         config.jwt_secret = EXAMPLE_JWT_SECRET.to_owned();
         assert_eq!(config.example_secrets_in_use(), vec!["JWT_SECRET"]);
     }
+
+    #[test]
+    fn placeholder_totp_key_is_flagged() {
+        let mut config = sample_config();
+        config.totp_encryption_key = EXAMPLE_TOTP_ENCRYPTION_KEY;
+        assert_eq!(config.example_secrets_in_use(), vec!["TOTP_ENCRYPTION_KEY"]);
+    }
+
+    #[test]
+    fn both_placeholders_are_flagged_together() {
+        let mut config = sample_config();
+        config.jwt_secret = EXAMPLE_JWT_SECRET.to_owned();
+        config.totp_encryption_key = EXAMPLE_TOTP_ENCRYPTION_KEY;
+        assert_eq!(
+            config.example_secrets_in_use(),
+            vec!["JWT_SECRET", "TOTP_ENCRYPTION_KEY"]
+        );
+    }
 }
