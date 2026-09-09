@@ -21,9 +21,13 @@ use kora_2fa::config::Config;
 use kora_2fa::routes::{self, AppState, REQUEST_BODY_LIMIT_BYTES, REQUEST_TIMEOUT};
 
 /// A pool that parses its URL but never connects — enough to build the real
-/// `AppState`/`router` for tests that never reach a handler that queries.
+/// `AppState`/`router`. Any handler that does reach a query fails fast (short
+/// acquire timeout) rather than hanging on the missing database.
 fn lazy_pool() -> PgPool {
-    PgPool::connect_lazy("postgresql://kora:kora@127.0.0.1:5432/unused").unwrap()
+    sqlx::postgres::PgPoolOptions::new()
+        .acquire_timeout(Duration::from_millis(200))
+        .connect_lazy("postgresql://kora:kora@127.0.0.1:5432/unused")
+        .unwrap()
 }
 
 fn test_config() -> Config {
@@ -167,4 +171,19 @@ async fn timeout_layer_replaces_a_slow_response_with_408() {
 #[test]
 fn production_request_timeout_is_10s() {
     assert_eq!(REQUEST_TIMEOUT, Duration::from_secs(10));
+}
+
+/// A non-panicking response — here `/health`'s `503` when the DB is
+/// unreachable — passes through the hardening stack with status and JSON
+/// body intact.
+#[tokio::test]
+async fn ordinary_error_responses_pass_through_unchanged() {
+    let req = Request::builder()
+        .uri("/health")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(production_router(), req).await;
+
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["status"], "degraded");
 }
