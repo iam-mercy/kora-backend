@@ -73,3 +73,14 @@ allow = [
     "Zlib",
     "CC0-1.0",
 ]
+
+# Per-crate license exceptions. Narrower than adding the id to `allow`: only
+# the named crate, at any version, may carry the listed licence.
+[[licenses.exceptions]]
+# webpki-roots bundles Mozilla's root CA certificate set, which Mozilla
+# distributes under CDLA-Permissive-2.0 — a permissive *data* licence (no
+# copyleft, no patent-retaliation clause). It covers the certificate data, not
+# the crate's ~30 lines of Rust. sqlx pulls it in for rustls TLS to Postgres.
+# One entry covers both the 0.26.x and 1.0.x copies in the graph.
+name = "webpki-roots"
+allow = ["CDLA-Permissive-2.0"]
