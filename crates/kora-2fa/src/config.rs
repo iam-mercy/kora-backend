@@ -104,7 +104,7 @@ impl Config {
 
         let session_token_ttl = Duration::from_secs(parse_or("SESSION_TOKEN_TTL_SECS", 900)?);
 
-        Ok(Self {
+        let config = Self {
             database_url,
             db_pool_min,
             db_pool_max,
@@ -114,7 +114,18 @@ impl Config {
             jwt_secret,
             totp_encryption_key,
             session_token_ttl,
-        })
+        };
+
+        for var in config.example_secrets_in_use() {
+            tracing::warn!(
+                env_var = var,
+                "SECURITY: {var} is set to the .env.example placeholder value — \
+                 generate a real secret before deploying; this build must not \
+                 run outside local development with this value"
+            );
+        }
+
+        Ok(config)
     }
 
     /// `tracing` filter directive: `RUST_LOG` if set, else a sensible default.
