@@ -380,3 +380,39 @@ The service ships a multi-stage [`Dockerfile`](Dockerfile), and
   bridges; the host path works everywhere and Postgres already publishes
   5432. `extra_hosts: host.docker.internal:host-gateway` makes the name
   resolve on plain Linux Docker too.
+
+---
+
+## 18. Router hardening layers
+
+Neither `openapi.yaml` nor `environment-variables.md` says anything about
+panic handling, request-size caps, or per-request timeouts. Phase 1 adds a
+small, non-configurable hardening stack in `routes::hardening_layers`,
+applied by `routes::router` to every endpoint.
+
+**Decisions:**
+- **Panic → the shared error envelope.** `tower_http::catch_panic::
+  CatchPanicLayer` is the outermost layer. A handler panic is caught and
+  rendered as the same `{ "error": "INTERNAL", "message": "An internal error
+  occurred" }` / `500` body `AppError::internal` produces (the panic payload
+  is logged, never returned), instead of the connection being dropped
+  mid-response.
+- **Request-body cap — 64 KiB** (`REQUEST_BODY_LIMIT_BYTES`), via
+  `tower_http::limit::RequestBodyLimitLayer`. Every Phase 1 body is a small
+  JSON object; an over-cap request is refused with `413` (up front when a
+  `Content-Length` says so, otherwise once the byte count is exceeded on
+  read) before a handler buffers it.
+- **Request timeout — 10 s** (`REQUEST_TIMEOUT`), via
+  `tower_http::timeout::TimeoutLayer` (with `StatusCode::REQUEST_TIMEOUT`).
+  A handler that outruns the budget — e.g. a wedged DB call — has its
+  response replaced with a `408` so a slow dependency cannot pin a
+  connection open indefinitely.
+
+**Gap:** the two limits are hardcoded constants, not env vars. If Phase 2
+needs them tunable, add them to a future revision of
+`environment-variables.md` alongside `#1`/`#3`/`#4`/`#11`. `axum`'s built-in
+`DefaultBodyLimit` (2 MiB) still applies underneath the tighter cap.
+
+Covered by `tests/hardening.rs` (panic envelope, body cap up-front and
+mid-read, timeout `408`, pass-through of ordinary responses) and the
+`panic_message` unit tests in `routes`.
