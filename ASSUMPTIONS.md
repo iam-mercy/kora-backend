@@ -371,5 +371,12 @@ The service ships a multi-stage [`Dockerfile`](Dockerfile), and
   build context and `build.rs` degrades gracefully (see
   `docs/environment-variables.md`).
 - **Env** — compose feeds the service `.env.example` and overrides
-  `DATABASE_URL` to the `postgres` service host. The dev `JWT_SECRET` /
-  `TOTP_ENCRYPTION_KEY` in that file are for local use only.
+  `DATABASE_URL`. The dev `JWT_SECRET` / `TOTP_ENCRYPTION_KEY` in that file
+  are for local use only.
+- **DB connection path** — the service reaches Postgres via
+  `host.docker.internal:5432` (the host's published port), not the compose
+  bridge. Service-name DNS resolves, but some nested/sandboxed Docker setups
+  (Codespaces, some CI) filter container-to-container traffic on user-defined
+  bridges; the host path works everywhere and Postgres already publishes
+  5432. `extra_hosts: host.docker.internal:host-gateway` makes the name
+  resolve on plain Linux Docker too.
