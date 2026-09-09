@@ -223,6 +223,9 @@ pub async fn verify(
             AppError::unauthorized("TWO_FACTOR_NOT_ENABLED", "2FA is not enabled for this user")
         })?;
 
+    // Fast-path guard for an already-locked account. This reads the snapshot
+    // on purpose; the authoritative lock decision for *this* request is made
+    // inside `register_failure`, against the row it writes.
     if record.is_locked(now) {
         return Err(AppError::locked(
             "account is locked after too many failed attempts",
@@ -234,6 +237,8 @@ pub async fn verify(
 
     let totp = totp_from_record(&state, &record)?;
     if !totp::verify(&totp, &req.token) {
+        // Increments and returns 423/401 from the post-update row, never from
+        // `record` — which was loaded before this failure existed.
         return Err(register_failure(&state.pool, &req.user_id, now).await?);
     }
 
