@@ -234,7 +234,7 @@ pub async fn verify(
 
     let totp = totp_from_record(&state, &record)?;
     if !totp::verify(&totp, &req.token) {
-        return Err(register_failure(&state.pool, &record, now).await?);
+        return Err(register_failure(&state.pool, &req.user_id, now).await?);
     }
 
     let (ip, ua) = client_meta(&headers);
@@ -302,7 +302,7 @@ pub async fn login(
 
     let totp = totp_from_record(&state, &record)?;
     if !totp::verify(&totp, &req.token) {
-        return Err(register_failure(&state.pool, &record, now).await?);
+        return Err(register_failure(&state.pool, &req.user_id, now).await?);
     }
 
     let (ip, ua) = client_meta(&headers);
@@ -347,7 +347,7 @@ fn totp_from_record(state: &AppState, record: &TwoFactorRow) -> ApiResult<TOTP> 
 /// should surface: 423 once locked, otherwise 401.
 async fn register_failure(
     exec: impl PgExecutor<'_>,
-    record: &TwoFactorRow,
+    user_id: &str,
     now: DateTime<Utc>,
 ) -> Result<AppError, sqlx::Error> {
     // Increment and decide the lock in one statement. A read-modify-write in
@@ -367,7 +367,7 @@ async fn register_failure(
         WHERE user_id = $1
         RETURNING failed_attempts, locked_until
         "#,
-        record.user_id,
+        user_id,
         MAX_FAILED_ATTEMPTS,
         lockout_deadline(now),
     )
