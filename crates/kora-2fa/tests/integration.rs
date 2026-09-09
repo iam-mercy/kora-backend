@@ -476,4 +476,10 @@ async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
         statuses.push(res.unwrap());
     }
     assert_eq!(statuses.len(), N);
+    assert!(
+        statuses
+            .iter()
+            .all(|s| *s == StatusCode::UNAUTHORIZED || *s == StatusCode::LOCKED),
+        "each wrong guess is a 401, or a 423 once the lock trips: {statuses:?}"
+    );
 }
