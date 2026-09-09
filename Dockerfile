@@ -20,6 +20,11 @@ ARG RUST_VERSION=1
 FROM rust:${RUST_VERSION}-slim-bookworm AS chef
 WORKDIR /app
 
+# Resolve rust-toolchain.toml's `stable` channel once here, in a cached layer,
+# so neither `cargo chef cook` nor the release build stops to re-sync it.
+COPY rust-toolchain.toml .
+RUN rustup show
+
 # `rust:slim` ships no C toolchain; `ring` (pulled in via sqlx' rustls TLS)
 # needs a C compiler and linker to build.
 RUN apt-get update \
