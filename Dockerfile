@@ -70,4 +70,7 @@ USER nonroot:nonroot
 ENV BIND_ADDR=0.0.0.0:8080
 EXPOSE 8080
 
+# No HEALTHCHECK: distroless has no shell or curl/wget to run one. Probe the
+# unauthenticated GET /health endpoint from the orchestrator instead.
+
 ENTRYPOINT ["/usr/local/bin/kora-2fa"]
