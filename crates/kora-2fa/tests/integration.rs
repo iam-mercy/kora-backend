@@ -482,4 +482,14 @@ async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
             .all(|s| *s == StatusCode::UNAUTHORIZED || *s == StatusCode::LOCKED),
         "each wrong guess is a 401, or a 423 once the lock trips: {statuses:?}"
     );
+
+    // The whole point: every one of the N failures is counted. The old
+    // read-modify-write in register_failure let concurrent requests read the
+    // same starting count and write the same value, so this landed below N
+    // and the lockout never tripped.
+    assert_eq!(
+        failed_attempts(&pool, user).await,
+        N as i32,
+        "all {N} concurrent failures must be recorded"
+    );
 }
