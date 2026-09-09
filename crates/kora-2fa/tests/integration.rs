@@ -4,7 +4,9 @@
 //! the exact `routes::router` the binary serves, via `tower`'s `oneshot`.
 //! Covers: enable -> verify activates -> login (valid / invalid / expired)
 //! -> lockout after 5 failures -> recovery with a backup code disables 2FA
-//! -> the audit log records each event.
+//! -> the audit log records each event. Plus a concurrency regression test:
+//! N parallel wrong-TOTP attempts at one user_id must each be counted, so
+//! the lockout cannot be raced around.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
