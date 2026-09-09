@@ -119,3 +119,31 @@ pub const LOCKOUT_DURATION: Duration = Duration::from_secs(15 * 60);
 /// same `UPDATE` that increments `failed_attempts`, so parallel failed
 /// attempts cannot slip past it.
 pub const MAX_FAILED_ATTEMPTS: i32 = 5;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backoff_delay_doubles_each_attempt() {
+        let base = Duration::from_secs(1);
+        assert_eq!(backoff_delay(base, 1), Duration::from_secs(1));
+        assert_eq!(backoff_delay(base, 2), Duration::from_secs(2));
+        assert_eq!(backoff_delay(base, 3), Duration::from_secs(4));
+        assert_eq!(backoff_delay(base, 4), Duration::from_secs(8));
+    }
+
+    #[test]
+    fn backoff_delay_treats_attempt_zero_as_the_base() {
+        assert_eq!(
+            backoff_delay(Duration::from_millis(50), 0),
+            Duration::from_millis(50)
+        );
+    }
+
+    #[test]
+    fn default_boot_budget_is_five_attempts_from_one_second() {
+        assert_eq!(CONNECT_MAX_ATTEMPTS, 5);
+        assert_eq!(CONNECT_BASE_BACKOFF, Duration::from_secs(1));
+    }
+}
