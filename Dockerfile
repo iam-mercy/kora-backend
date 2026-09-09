@@ -45,3 +45,6 @@ ENV SQLX_OFFLINE=true
 # sqlx::migrate! here, so the runtime image won't need it.
 COPY . .
 RUN cargo build --release --package kora-2fa --locked
+
+# Drop debug symbols before the binary is carried into the runtime image.
+RUN strip target/release/kora-2fa
