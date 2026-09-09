@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use axum::routing::get;
 use axum::Router;
 use http_body_util::BodyExt;
 use serde_json::Value;
@@ -70,4 +71,27 @@ async fn production_router_rejects_oversized_body() {
 
     let (status, _) = send(production_router(), req).await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+/// Wrap a bare router in the exact hardening stack `router()` uses.
+fn hardened(router: Router) -> Router {
+    routes::hardening_layers(router)
+}
+
+async fn boom() -> &'static str {
+    panic!("handler blew up")
+}
+
+/// A panic inside a handler is caught and rendered as the same
+/// `{error, message}` 500 envelope `AppError::internal` produces — the
+/// connection is not dropped.
+#[tokio::test]
+async fn handler_panic_becomes_the_error_envelope() {
+    let app = hardened(Router::new().route("/boom", get(boom)));
+    let req = Request::builder().uri("/boom").body(Body::empty()).unwrap();
+
+    let (status, body) = send(app, req).await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(body["error"], "INTERNAL");
+    assert_eq!(body["message"], "An internal error occurred");
 }
