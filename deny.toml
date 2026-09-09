@@ -1,9 +1,8 @@
 # cargo-deny — supply-chain policy for kora-backend.
 #
-# Checked in CI by the `cargo-deny` job in .github/workflows/ci.yml. This first
-# cut covers advisories only; licenses, bans, and sources are layered on in
-# follow-up commits. Run `cargo deny check` locally before touching a
-# dependency.
+# Checked in CI by the `cargo-deny` job in .github/workflows/ci.yml. Covers
+# advisories and sources today; licenses and bans are layered on in follow-up
+# commits. Run `cargo deny check` locally before touching a dependency.
 
 [graph]
 # Resolve the crate graph with every feature on, so the policy sees the same
@@ -39,3 +38,13 @@ ignore = [
     # and a pointer to ASSUMPTIONS.md §15, rather than reaching for a blanket
     # suppression.
 ]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sources — where crates are allowed to come from
+# ─────────────────────────────────────────────────────────────────────────────
+[sources]
+# Everything must resolve from crates.io. No git dependencies, no private or
+# mirror registries. A `git = "..."` dep in a Cargo.toml fails this check.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
