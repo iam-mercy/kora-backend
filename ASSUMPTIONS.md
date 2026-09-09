@@ -170,6 +170,11 @@ added in Phase 1.
 - A successful `/2fa/recover` (backup code) also clears the lockout, since it
   disables 2FA entirely.
 
+The atomic increment is pinned by
+`tests/integration.rs::concurrent_wrong_totp_never_loses_a_failure`, which
+fires `MAX_FAILED_ATTEMPTS` wrong-TOTP requests at one `user_id` in parallel
+and asserts every one is counted.
+
 **Deferred:** a general per-`user_id` request-rate limiter (the
 `REDIS_URL`-backed limiter referenced in the env doc). Not in Phase 1.
 
