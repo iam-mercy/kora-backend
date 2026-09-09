@@ -40,3 +40,8 @@ RUN cargo chef cook --release --package kora-2fa --recipe-path recipe.json
 # No database at build time: the query!/query_as! macros resolve against the
 # committed .sqlx cache instead of a live connection.
 ENV SQLX_OFFLINE=true
+
+# Now the real sources. migrations/ is embedded into the binary by
+# sqlx::migrate! here, so the runtime image won't need it.
+COPY . .
+RUN cargo build --release --package kora-2fa --locked
