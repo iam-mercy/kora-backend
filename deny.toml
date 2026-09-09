@@ -1,9 +1,8 @@
 # cargo-deny — supply-chain policy for kora-backend.
 #
 # Checked in CI by the `cargo-deny` job in .github/workflows/ci.yml. The job's
-# check list widens one section at a time as this file is filled in; bans are
-# the last layer still to land. Run `cargo deny check` locally before touching
-# a dependency.
+# check list widens one section at a time as this file is filled in. Run
+# `cargo deny check` locally before touching a dependency.
 
 [graph]
 # Resolve the crate graph with every feature on, so the policy sees the same
@@ -84,3 +83,30 @@ allow = [
 # One entry covers both the 0.26.x and 1.0.x copies in the graph.
 name = "webpki-roots"
 allow = ["CDLA-Permissive-2.0"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bans — banned crates and duplicate versions
+# ─────────────────────────────────────────────────────────────────────────────
+[bans]
+# One version of each crate in the graph. A second copy fails CI; if it is
+# genuinely unavoidable (an upstream pins an old major), add it to `skip`
+# below with the reason. Deleting a `skip` line and having CI stay green is
+# the signal that the duplication is gone.
+multiple-versions = "deny"
+
+# No `version = "*"` dependencies.
+wildcards = "deny"
+
+# Show the full dependency path for every duplicate, so a new one is quick to
+# trace back to the crate that introduced it.
+highlight = "all"
+
+# Crates that must never appear in the graph. Empty today; this is where a
+# known-bad or unwanted crate (an unmaintained parser, a duplicate TLS stack)
+# gets pinned with a reason.
+deny = []
+
+# Duplicate-version allowances. Each entry is a crate we currently cannot
+# collapse to one version because the copies come from independent upstreams
+# pinning different majors. All are build-time or weightless on our targets.
+skip = []
