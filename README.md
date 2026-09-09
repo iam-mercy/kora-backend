@@ -66,6 +66,7 @@ crates/kora-2fa/           the service
 migrations/                sqlx migrations
 docs/                      vendored openapi.yaml + environment-variables.md
 Dockerfile                 multi-stage build -> distroless runtime image
+.dockerignore              keeps target/, .git/, secrets out of the context
 docker-compose.yml         Postgres + the kora-2fa service
 ```
 
