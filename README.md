@@ -79,9 +79,11 @@ curl localhost:8080/health                   # {"status":"ok"}
 ```
 
 `docker compose up` builds [`Dockerfile`](Dockerfile) (multi-stage: cargo-chef
-dependency cache → `--release` build → distroless runtime, non-root), waits for
-Postgres to pass its healthcheck, then starts the service on `:8080` wired to
-the same env as [`.env.example`](.env.example).
+dependency cache → `--release` build → ~47 MB distroless runtime, non-root),
+waits for Postgres to pass its healthcheck, then starts the service on `:8080`
+wired to the same env as [`.env.example`](.env.example). The service talks to
+Postgres over the host's published `:5432` (`host.docker.internal`), not the
+compose bridge — see [`ASSUMPTIONS.md`](ASSUMPTIONS.md) §17.
 
 ### Service on the host, Postgres in a container
 
