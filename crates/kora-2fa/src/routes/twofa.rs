@@ -228,7 +228,7 @@ pub async fn verify(
     // inside `register_failure`, against the row it writes.
     if record.is_locked(now) {
         return Err(AppError::locked(
-            "account is locked after too many failed attempts",
+            "account is locked after too many failed attempts; retry in 15 minutes",
         ));
     }
     if !totp::is_valid_format(&req.token) {
@@ -297,7 +297,7 @@ pub async fn login(
     // is made by register_failure() against the row it writes.
     if record.is_locked(now) {
         return Err(AppError::locked(
-            "account is locked after too many failed attempts",
+            "account is locked after too many failed attempts; retry in 15 minutes",
         ));
     }
     if !record.enabled {
@@ -395,7 +395,7 @@ async fn register_failure(
 /// lockout has tripped, otherwise a plain **401**.
 fn failure_error(locked: bool) -> AppError {
     if locked {
-        AppError::locked("account locked after too many failed attempts; retry in 15 minutes")
+        AppError::locked("account is locked after too many failed attempts; retry in 15 minutes")
     } else {
         AppError::unauthorized("INVALID_TOKEN", "the provided TOTP token is invalid")
     }
