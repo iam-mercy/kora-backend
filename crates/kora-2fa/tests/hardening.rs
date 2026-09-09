@@ -15,9 +15,10 @@ use http_body_util::BodyExt;
 use serde_json::Value;
 use sqlx::PgPool;
 use tower::ServiceExt;
+use tower_http::timeout::TimeoutLayer;
 
 use kora_2fa::config::Config;
-use kora_2fa::routes::{self, AppState, REQUEST_BODY_LIMIT_BYTES};
+use kora_2fa::routes::{self, AppState, REQUEST_BODY_LIMIT_BYTES, REQUEST_TIMEOUT};
 
 /// A pool that parses its URL but never connects — enough to build the real
 /// `AppState`/`router` for tests that never reach a handler that queries.
@@ -129,4 +130,41 @@ async fn body_at_the_cap_is_accepted() {
 
     let (status, _) = send(app, req).await;
     assert_eq!(status, StatusCode::OK);
+}
+
+/// A quick request passes through the full hardening stack untouched.
+#[tokio::test]
+async fn fast_request_passes_through_the_stack() {
+    let app = hardened(Router::new().route("/ping", get(|| async { "pong" })));
+    let req = Request::builder().uri("/ping").body(Body::empty()).unwrap();
+
+    let (status, _) = send(app, req).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+/// The `TimeoutLayer` the stack uses replaces an over-budget response with a
+/// `408`. Exercised here with a short budget so the test stays fast; the
+/// production budget is asserted separately below.
+#[tokio::test]
+async fn timeout_layer_replaces_a_slow_response_with_408() {
+    let slow = get(|| async {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        "too late"
+    });
+    let app = Router::new()
+        .route("/slow", slow)
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_millis(50),
+        ));
+    let req = Request::builder().uri("/slow").body(Body::empty()).unwrap();
+
+    let (status, _) = send(app, req).await;
+    assert_eq!(status, StatusCode::REQUEST_TIMEOUT);
+}
+
+/// Pin the production request budget so it cannot be shortened by accident.
+#[test]
+fn production_request_timeout_is_10s() {
+    assert_eq!(REQUEST_TIMEOUT, Duration::from_secs(10));
 }
