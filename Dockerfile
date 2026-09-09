@@ -48,3 +48,8 @@ RUN cargo build --release --package kora-2fa --locked
 
 # Drop debug symbols before the binary is carried into the runtime image.
 RUN strip target/release/kora-2fa
+
+# ── runtime ───────────────────────────────────────────────────────────────────
+# distroless/cc carries glibc + libgcc + ca-certificates and nothing else — no
+# shell, no package manager. Its :nonroot tag runs as uid 65532.
+FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
