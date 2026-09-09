@@ -20,5 +20,10 @@ services:
       timeout: 5s
       retries: 10
 
+  kora-2fa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
 volumes:
   kora_pgdata:
