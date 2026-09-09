@@ -238,3 +238,35 @@ fn load_totp_key() -> Result<[u8; 32], ConfigError> {
         .try_into()
         .map_err(|_| ConfigError::KeyLength(decoded.len()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A `Config` with real, non-placeholder secrets.
+    fn sample_config() -> Config {
+        Config {
+            database_url: "postgresql://u:p@localhost/db".to_owned(),
+            db_pool_min: 1,
+            db_pool_max: 10,
+            db_pool_acquire_timeout: Duration::from_secs(30),
+            pool_stats_enabled: false,
+            bind_addr: "0.0.0.0:8080".parse().unwrap(),
+            jwt_secret: "a-real-provisioned-secret".to_owned(),
+            totp_encryption_key: [1u8; 32],
+            session_token_ttl: Duration::from_secs(900),
+        }
+    }
+
+    #[test]
+    fn real_secrets_are_not_flagged() {
+        assert!(sample_config().example_secrets_in_use().is_empty());
+    }
+
+    #[test]
+    fn placeholder_jwt_secret_is_flagged() {
+        let mut config = sample_config();
+        config.jwt_secret = EXAMPLE_JWT_SECRET.to_owned();
+        assert_eq!(config.example_secrets_in_use(), vec!["JWT_SECRET"]);
+    }
+}
