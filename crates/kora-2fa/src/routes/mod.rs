@@ -8,16 +8,20 @@ pub mod health;
 pub mod recovery;
 pub mod twofa;
 
+use std::any::Any;
 use std::sync::Arc;
 
 use axum::http::HeaderMap;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use sqlx::PgPool;
+use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::config::Config;
 use crate::db::models::{AuditEvent, TwoFactorRow};
+use crate::error::AppError;
 
 /// State shared by every handler: configuration + the DB pool.
 #[derive(Clone)]
@@ -64,7 +68,31 @@ pub fn hardening_layers<S>(router: Router<S>) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {
-    router.layer(TraceLayer::new_for_http())
+    router
+        .layer(TraceLayer::new_for_http())
+        // Outermost: a handler panic becomes the same `{error, message}`
+        // 500 envelope every other error path returns, instead of a dropped
+        // connection.
+        .layer(CatchPanicLayer::custom(handle_panic))
+}
+
+/// Turn a caught handler panic into the standard `{error, message}` envelope
+/// (HTTP 500), identical to what [`AppError::internal`] renders. The panic
+/// payload is logged, never surfaced to the caller.
+fn handle_panic(err: Box<dyn Any + Send + 'static>) -> Response {
+    let detail = panic_message(err.as_ref());
+    AppError::internal(format!("handler panicked: {detail}")).into_response()
+}
+
+/// Best-effort recovery of a panic's message payload for the log line.
+fn panic_message(err: &(dyn Any + Send)) -> String {
+    if let Some(s) = err.downcast_ref::<&'static str>() {
+        (*s).to_owned()
+    } else if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".to_owned()
+    }
 }
 
 // ─── Cross-handler helpers ─────────────────────────────────────────────────
