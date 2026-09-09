@@ -157,6 +157,7 @@ gate (`ASSUMPTIONS.md` §22).
 | `test` | `cargo test --workspace --all-targets` against a Postgres 16 service container |
 | `cargo-deny` | [`cargo deny check`](deny.toml) — advisories, licenses, bans (duplicate versions), sources. Replaces the old `cargo audit` job (`ASSUMPTIONS.md` §21) |
 | `coverage` | `cargo llvm-cov` against the Postgres service container; line / function % to the job summary, `lcov.info` + `coverage.json` as an artifact. Report-only (`ASSUMPTIONS.md` §22) |
+| `image scan` | Builds [`Dockerfile`](Dockerfile) and runs a [Trivy](https://trivy.dev) vulnerability scan on the image (OS + linked libs). HIGH/CRITICAL table to the log, SARIF as an artifact + to the Security tab. Report-only, `--ignore-unfixed`, ignores in [`.trivyignore`](.trivyignore) (`ASSUMPTIONS.md` §23) |
 
 `fmt` and `clippy` build offline against the committed `.sqlx/` query
 cache — regenerate it with `cargo sqlx prepare --workspace` after any query
@@ -167,3 +168,17 @@ Every `cargo-deny` finding on today's dependency graph is written into
 and it is a *new* advisory / disallowed license / duplicate crate / git
 dependency that turns it red. Run `cargo deny check` locally before changing
 a dependency.
+
+`cargo-deny` scans the source dependency graph; the `image scan` job scans
+the built container — the distroless base OS packages and the libraries
+linked into the release binary — which the source scan never sees. Run it
+locally with:
+
+```sh
+docker build -t kora-2fa .
+trivy image --ignore-unfixed --severity HIGH,CRITICAL kora-2fa
+```
+
+`coverage` and `image scan` are **report-only** today: they publish numbers
+and findings but do not fail the build. `ASSUMPTIONS.md` §22 / §23 record
+what it takes to promote each to a gate.
