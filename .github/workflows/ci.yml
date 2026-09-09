@@ -151,3 +151,19 @@ jobs:
           tags: kora-2fa:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Report-only for now (exit-code: 0). Prints a HIGH/CRITICAL table to the
+      # log; does not fail the job. `ignore-unfixed` hides CVEs with no
+      # available fix — the distroless base carries a handful of those and we
+      # can't act on them from here. See ASSUMPTIONS.md §23.
+      # Pin to a released tag (ideally a commit SHA); trivy-action tags were
+      # re-cut after a 2025 supply-chain incident.
+      - name: Trivy scan (table)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: kora-2fa:ci
+          scan-type: image
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
