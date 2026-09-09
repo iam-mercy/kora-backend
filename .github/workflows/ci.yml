@@ -167,3 +167,28 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "0"
+
+      # Machine-readable copy of the same scan for the run's artifacts and,
+      # where the repo has code scanning enabled, the Security tab.
+      - name: Trivy scan (SARIF)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: kora-2fa:ci
+          scan-type: image
+          format: sarif
+          output: trivy-results.sarif
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+        # Code scanning isn't enabled on every repo / plan; don't fail CI over it.
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trivy
+          path: trivy-results.sarif
+          if-no-files-found: error
