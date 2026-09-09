@@ -63,7 +63,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 ENV SQLX_OFFLINE=true
 
 # Now the real sources. migrations/ is embedded into the binary by
-# sqlx::migrate! here, so the runtime image won't need it.
+# sqlx::migrate! here, so the runtime image won't need it. .git/ is excluded
+# by .dockerignore, so build.rs reports GIT_SHA as "unknown" in the image.
 COPY . .
 # Build, then strip debug symbols in the same layer so they never land in an
 # intermediate image.
