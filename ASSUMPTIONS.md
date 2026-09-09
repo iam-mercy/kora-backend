@@ -339,3 +339,34 @@ zero clock leeway) and then call `require_self` against the body or path
 `user_id`. A token whose `sub` differs from the target `user_id` is a 403,
 never a silent success — there is no cross-user or admin path in Phase 1
 (#6).
+
+---
+
+## 17. Container image and the compose stack
+
+The service ships a multi-stage [`Dockerfile`](Dockerfile), and
+`docker-compose.yml` runs it alongside Postgres.
+
+**Decisions:**
+- **Build image** — `rust:<stable>-slim-bookworm`. `rust-toolchain.toml`
+  pins only the `stable` channel, so the default `RUST_VERSION=1` tracks the
+  latest stable 1.x; pin it to a minor for reproducible builds. `slim` needs
+  `build-essential` added — `ring` (via sqlx' rustls TLS) wants a C compiler.
+- **Dependency cache** — `cargo-chef` (pinned) so a source-only edit re-uses
+  the cooked-dependency layer.
+- **Offline build** — `SQLX_OFFLINE=true` + the checked-in `.sqlx/` cache;
+  the image builds with no database (#15). `migrations/` is embedded by
+  `sqlx::migrate!` at compile time, so the runtime image omits it.
+- **Runtime image** — `gcr.io/distroless/cc-debian12:nonroot`: glibc +
+  `ca-certificates`, no shell or package manager, runs as uid 65532. Just
+  the stripped binary is copied in.
+- **No `HEALTHCHECK`** in the image (distroless has no tool to run one);
+  probe `GET /health` from the orchestrator. Compose still gates the service
+  on `postgres`'s own healthcheck via `depends_on: condition:
+  service_healthy`.
+- **`GIT_SHA`** is `"unknown"` in the image — `.git/` is excluded from the
+  build context and `build.rs` degrades gracefully (see
+  `docs/environment-variables.md`).
+- **Env** — compose feeds the service `.env.example` and overrides
+  `DATABASE_URL` to the `postgres` service host. The dev `JWT_SECRET` /
+  `TOTP_ENCRYPTION_KEY` in that file are for local use only.
