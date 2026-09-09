@@ -5,3 +5,8 @@ target/
 .git/
 .gitignore
 .gitattributes
+
+# Local secrets / env overrides — the image must never bake these in.
+.env
+*.pem
+*.key
