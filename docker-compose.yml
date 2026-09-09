@@ -36,6 +36,9 @@ services:
       # Override .env.example's localhost URL: inside the compose network the
       # database is reachable at the service name.
       DATABASE_URL: postgresql://kora:kora@postgres:5432/kora_2fa
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   kora_pgdata:
