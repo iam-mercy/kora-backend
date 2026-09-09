@@ -348,12 +348,15 @@ The service ships a multi-stage [`Dockerfile`](Dockerfile), and
 `docker-compose.yml` runs it alongside Postgres.
 
 **Decisions:**
-- **Build image** — `rust:<stable>-slim-bookworm`. `rust-toolchain.toml`
-  pins only the `stable` channel, so the default `RUST_VERSION=1` tracks the
-  latest stable 1.x; pin it to a minor for reproducible builds. `slim` needs
-  `build-essential` added — `ring` (via sqlx' rustls TLS) wants a C compiler.
+- **Build image** — `rust:${RUST_VERSION}-slim-bookworm`, `RUST_VERSION`
+  defaulting to `1.98` (a concrete pin of `rust-toolchain.toml`'s `stable`;
+  overridable as a compose build arg). `slim` needs `build-essential` added —
+  `ring` (via sqlx' rustls TLS) wants a C compiler. `rust-toolchain.toml` is
+  copied in and `rustup show` run early so the `stable` channel resolves once,
+  in a cached layer, rather than mid-build.
 - **Dependency cache** — `cargo-chef` (pinned) so a source-only edit re-uses
-  the cooked-dependency layer.
+  the cooked-dependency layer, plus BuildKit cache mounts on
+  `/usr/local/cargo/{registry,git}` so crate downloads survive across builds.
 - **Offline build** — `SQLX_OFFLINE=true` + the checked-in `.sqlx/` cache;
   the image builds with no database (#15). `migrations/` is embedded by
   `sqlx::migrate!` at compile time, so the runtime image omits it.
