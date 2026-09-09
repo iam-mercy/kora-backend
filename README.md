@@ -37,7 +37,9 @@ Every error response is the shared envelope
   in plaintext, and returned once from `/2fa/enable`.
 - **Lockout**: 5 consecutive failed TOTP checks on `/2fa/verify` or
   `/2fa/login` lock the account for 15 minutes. Implemented with Postgres
-  columns — **no Redis** in Phase 1.
+  columns — **no Redis** in Phase 1. The counter is incremented with a single
+  atomic `UPDATE`, so parallel wrong guesses at one `user_id` can't race
+  around the threshold.
 
 The service verifies JWTs with a `JWT_SECRET` that is **not** in the
 authoritative env-var doc, along with three other added vars. Every such gap
