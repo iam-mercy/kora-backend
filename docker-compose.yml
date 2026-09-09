@@ -32,6 +32,10 @@ services:
     # the non-secret defaults (DB pool sizes, RUST_LOG, TTLs, the dev keys).
     env_file:
       - .env.example
+    environment:
+      # Override .env.example's localhost URL: inside the compose network the
+      # database is reachable at the service name.
+      DATABASE_URL: postgresql://kora:kora@postgres:5432/kora_2fa
 
 volumes:
   kora_pgdata:
