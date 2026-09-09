@@ -10,3 +10,10 @@ target/
 .env
 *.pem
 *.key
+
+# CI config and editor cruft — irrelevant to the compile.
+.github/
+.vscode/
+.idea/
+**/*.rs.bk
+*.log
