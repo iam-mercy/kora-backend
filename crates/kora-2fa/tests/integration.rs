@@ -450,7 +450,7 @@ async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
     const N: usize = 5;
     let app = app(pool.clone());
     let user = "race_user";
-    activate(&app, user).await;
+    let secret = activate(&app, user).await;
     let auth = bearer(user);
 
     // Fire N wrong-TOTP verifies at the same user_id concurrently, the way a
@@ -492,4 +492,17 @@ async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
         N as i32,
         "all {N} concurrent failures must be recorded"
     );
+
+    // N == MAX_FAILED_ATTEMPTS, so the lock genuinely tripped: even a valid
+    // token is refused now.
+    let (status, _) = call(
+        &app,
+        post(
+            "/2fa/verify",
+            Some(&auth),
+            json!({ "user_id": user, "token": totp_code(&secret, 0) }),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::LOCKED);
 }
