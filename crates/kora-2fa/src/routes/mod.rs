@@ -56,6 +56,12 @@ pub fn router(state: AppState) -> Router {
     hardening_layers(endpoints).with_state(state)
 }
 
+/// Maximum accepted request-body size. Every Phase 1 endpoint takes a small
+/// JSON object (a `user_id`, an email, a 6-digit code); 64 KiB is far more
+/// than any legitimate call needs and caps memory a hostile caller can make
+/// the service buffer.
+pub const REQUEST_BODY_LIMIT_BYTES: usize = 64 * 1024;
+
 /// The cross-cutting hardening stack applied to every route.
 ///
 /// `.layer()` applies bottom-to-top, so the calls read inner-to-outer: the
