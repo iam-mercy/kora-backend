@@ -116,3 +116,20 @@ jobs:
             cargo llvm-cov report --summary-only
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Coverage reports
+        run: |
+          cargo llvm-cov report --lcov --output-path lcov.info
+          cargo llvm-cov report --json --output-path coverage.json
+          lines=$(jq -r '.data[0].totals.lines.percent' coverage.json)
+          funcs=$(jq -r '.data[0].totals.functions.percent' coverage.json)
+          printf 'Lines: %.2f%%  Functions: %.2f%%\n' "$lines" "$funcs"
+          printf -- '- **Lines:** %.2f%%  •  **Functions:** %.2f%%\n' "$lines" "$funcs" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            lcov.info
+            coverage.json
+          if-no-files-found: error
