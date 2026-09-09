@@ -1,0 +1,2 @@
+# Build artifacts — never send the local target dir into the build context.
+target/
