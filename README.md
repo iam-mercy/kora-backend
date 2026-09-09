@@ -96,6 +96,10 @@ Configuration is documented in [`docs/environment-variables.md`](docs/environmen
 (Phase 1 reads a subset) and [`.env.example`](.env.example) (which also
 lists the four added vars, each cross-referenced to `ASSUMPTIONS.md`).
 
+> The compose stack feeds the service `.env.example` verbatim — including the
+> **dev-only** `JWT_SECRET` and `TOTP_ENCRYPTION_KEY`. Override both (and
+> `DATABASE_URL`) before running the image anywhere real.
+
 ## Tests
 
 ```sh
