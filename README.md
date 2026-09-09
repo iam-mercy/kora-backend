@@ -77,7 +77,11 @@ docker-compose.yml         Postgres + the kora-2fa service
 ```sh
 docker compose up --build                   # builds the image, starts Postgres + kora-2fa
 curl localhost:8080/health                   # {"status":"ok"}
+docker compose down                          # stop the stack (add -v to drop the DB volume)
 ```
+
+Re-run `docker compose up --build` after code changes — cargo-chef keeps the
+dependency layer, so only the service crate recompiles.
 
 `docker compose up` builds [`Dockerfile`](Dockerfile) (multi-stage: cargo-chef
 dependency cache → `--release` build → ~47 MB distroless runtime, non-root),
