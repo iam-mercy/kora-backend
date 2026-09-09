@@ -92,6 +92,45 @@ fn totp_code(secret: &str, offset: i64) -> String {
     totp.generate(t)
 }
 
+/// Read the raw lockout counter for a user straight off the row.
+async fn failed_attempts(pool: &PgPool, user_id: &str) -> i32 {
+    sqlx::query_scalar!(
+        "SELECT failed_attempts FROM two_factor_records WHERE user_id = $1",
+        user_id,
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// Enable + activate 2FA for `user`, returning the base32 secret. Leaves the
+/// account enabled with `failed_attempts = 0`.
+async fn activate(app: &Router, user: &str) -> String {
+    let auth = bearer(user);
+    let (status, body) = call(
+        app,
+        post(
+            "/2fa/enable",
+            Some(&auth),
+            json!({ "user_id": user, "email": "alice@kora.app" }),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "enable: {body}");
+    let secret = body["secret"].as_str().unwrap().to_owned();
+    let (status, body) = call(
+        app,
+        post(
+            "/2fa/verify",
+            Some(&auth),
+            json!({ "user_id": user, "token": totp_code(&secret, 0) }),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "activate: {body}");
+    secret
+}
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn full_2fa_lifecycle(pool: PgPool) {
     let app = app(pool);
@@ -396,4 +435,12 @@ async fn health_reports_ok(pool: PgPool) {
     let (status, body) = call(&app, get("/health", None)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, json!({ "status": "ok" }));
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn lockout_counter_starts_at_zero(pool: PgPool) {
+    let app = app(pool.clone());
+    let user = "counter_zero";
+    activate(&app, user).await;
+    assert_eq!(failed_attempts(&pool, user).await, 0);
 }
