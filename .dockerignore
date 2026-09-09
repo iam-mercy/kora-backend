@@ -1,2 +1,7 @@
 # Build artifacts — never send the local target dir into the build context.
 target/
+
+# Version-control metadata. build.rs degrades GIT_SHA to "unknown" without it.
+.git/
+.gitignore
+.gitattributes
