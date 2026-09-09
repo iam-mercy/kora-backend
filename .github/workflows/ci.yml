@@ -75,8 +75,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # Prebuilt binary + cached advisory DB; no toolchain build needed.
-      # `deny.toml` grows one policy layer at a time — this step tracks it,
-      # widening from `advisories` to the full check as each section lands.
+      # Runs all four checks (advisories, bans, licenses, sources) against
+      # deny.toml. Every current finding is enumerated there with a rationale,
+      # so this is green today and a *new* violation is what turns it red.
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check advisories licenses sources
+          command: check
