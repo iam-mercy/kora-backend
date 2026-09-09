@@ -24,6 +24,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: kora-2fa:local
+    container_name: kora-2fa
 
 volumes:
   kora_pgdata:
