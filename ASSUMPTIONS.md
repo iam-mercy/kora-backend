@@ -562,3 +562,56 @@ here. Function coverage can get its own `--fail-under-functions` if the
 reusing the `test` job's artifacts, so it roughly doubles that job's wall
 time. Acceptable for a small workspace; revisit (e.g. `cargo-nextest` +
 a shared instrumented build) if CI time becomes a problem.
+
+---
+
+## 23. Container image vulnerability scanning (Trivy), report-only
+
+`cargo-deny` (§21) checks the *source* dependency graph. It says nothing
+about the runtime image: the `gcr.io/distroless/cc-debian12` base's OS
+packages (glibc, libgcc, OpenSSL, zlib, …) and anything linked into the
+release binary. #17 pins the base by digest but a pinned digest still ages —
+a CVE disclosed against glibc tomorrow is in the image we ship today.
+
+**Decision:** add an `image` CI job that builds the release `Dockerfile` and
+runs **Trivy** against the resulting image:
+
+- a `HIGH,CRITICAL` findings **table** to the job log,
+- a **SARIF** report uploaded as the `trivy` artifact and, where the repo
+  has code scanning enabled, to the Security tab
+  (`github/codeql-action/upload-sarif`, `continue-on-error` so repos without
+  it don't fail),
+- `--ignore-unfixed`: CVEs with no upstream fix are noise here — we can't
+  patch a distroless base ourselves — so only actionable (fixable) findings
+  are reported,
+- suppressions, if any, live in `.trivyignore` (empty today) with a comment
+  and expiry per entry.
+
+**Report-only, deliberately** (`exit-code: 0`):
+
+- The first run establishes the baseline. Gating before seeing it risks
+  turning `main` red on the first unrelated PR.
+- Image CVEs appear with **zero repo activity** — a new advisory against a
+  base package flips the result between one PR and the next. A blocking scan
+  on a fast-moving DB means unrelated PRs eating failures for something the
+  author can't fix in that PR. Report-first, gate once the baseline is known
+  to be clean and a bump cadence for the base image exists.
+- `--ignore-unfixed` already means a blocking version would only fire on
+  *fixable* HIGH/CRITICAL CVEs — the right eventual gate, but still worth a
+  few runs of observation first.
+
+**How to promote it to a gate:** set `exit-code: "1"` on the table scan
+(keep `--ignore-unfixed` and `severity: HIGH,CRITICAL`), after confirming a
+clean baseline and adding a routine that bumps the distroless base digest
+(§17) on a schedule so fixable findings have a path to green.
+
+**Gaps:**
+- Adds a full release image build to CI (~minutes, mitigated by the GHA
+  layer cache and cargo-chef). It does not block the Rust jobs — they run in
+  parallel — but it is the long pole of a green run.
+- `aquasecurity/trivy-action` is pinned to a release tag, not a commit SHA;
+  the action's tags were re-cut after a 2025 supply-chain incident, so a SHA
+  pin (or a vendored Trivy binary) is the stricter choice if that risk
+  matters here.
+- Trivy also offers config/IaC and secret scanning; only image
+  vulnerability scanning is wired up.
