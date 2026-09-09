@@ -49,5 +49,7 @@ impl PoolStats {
 pub const LOCKOUT_DURATION: Duration = Duration::from_secs(15 * 60);
 
 /// Consecutive failures that trip the lockout (`docs/openapi.yaml`: "After 5
-/// consecutive failures").
+/// consecutive failures"). The compare against this bound happens inside the
+/// same `UPDATE` that increments `failed_attempts`, so parallel failed
+/// attempts cannot slip past it.
 pub const MAX_FAILED_ATTEMPTS: i32 = 5;
