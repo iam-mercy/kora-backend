@@ -352,7 +352,7 @@ async fn register_failure(
 ) -> Result<AppError, sqlx::Error> {
     let attempts = record.failed_attempts + 1;
     let locked = attempts >= MAX_FAILED_ATTEMPTS;
-    let locked_until = locked.then(|| now + Duration::seconds(LOCKOUT_DURATION.as_secs() as i64));
+    let locked_until = locked.then(|| lockout_deadline(now));
 
     sqlx::query!(
         r#"
@@ -372,6 +372,12 @@ async fn register_failure(
     } else {
         AppError::unauthorized("INVALID_TOKEN", "the provided TOTP token is invalid")
     })
+}
+
+/// The `locked_until` value for a lockout that trips at `now`: `now` plus the
+/// configured `LOCKOUT_DURATION`.
+fn lockout_deadline(now: DateTime<Utc>) -> DateTime<Utc> {
+    now + Duration::seconds(LOCKOUT_DURATION.as_secs() as i64)
 }
 
 /// Clear the failure counter and lock after any successful verification.
