@@ -52,6 +52,7 @@ FROM chef AS builder
 # when the dependency set changes.
 COPY --from=planner /app/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
     cargo chef cook --release --package kora-2fa --recipe-path recipe.json
 
 # No database at build time: the query!/query_as! macros resolve against the
@@ -64,6 +65,7 @@ COPY . .
 # Build, then strip debug symbols in the same layer so they never land in an
 # intermediate image.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
     cargo build --release --package kora-2fa --locked \
     && strip target/release/kora-2fa
 
