@@ -2,6 +2,15 @@
 
 # Multi-stage build for the kora-2fa service.
 #
+# Stages:
+#   chef     — base image: C toolchain + cargo-chef
+#   planner  — emits recipe.json (the dependency graph)
+#   builder  — cooks deps from the recipe, then builds the release binary
+#   runtime  — distroless/cc image carrying only the stripped binary
+#
+# Build:  docker build -t kora-2fa .
+# Run:    docker compose up   (brings up postgres + this service)
+#
 # rust-toolchain.toml tracks the `stable` channel, so the build image follows
 # the latest stable 1.x. Pin RUST_VERSION to a specific minor (e.g. 1.90) for
 # byte-for-byte reproducible builds.
