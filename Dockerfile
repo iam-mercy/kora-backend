@@ -58,3 +58,8 @@ COPY --from=builder /app/target/release/kora-2fa /usr/local/bin/kora-2fa
 
 # Explicit even though :nonroot already defaults to it.
 USER nonroot:nonroot
+
+# The service reads BIND_ADDR (config.rs default is 0.0.0.0:8080). Set it here
+# so the container listens on all interfaces without needing compose to pass it.
+ENV BIND_ADDR=0.0.0.0:8080
+EXPOSE 8080
