@@ -90,7 +90,9 @@ cargo test -p kora-2fa                      # unit + #[sqlx::test] integration
 
 Unit tests cover the TOTP and crypto primitives; the integration suite
 drives the real router against a fresh per-test database and walks the full
-enable → verify → login → lockout → recover → audit-log journey.
+enable → verify → login → lockout → recover → audit-log journey, plus a
+concurrency regression test that fires parallel wrong-TOTP attempts at one
+`user_id` and checks none are lost.
 
 ## CI
 
