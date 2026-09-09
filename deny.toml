@@ -1,8 +1,9 @@
 # cargo-deny — supply-chain policy for kora-backend.
 #
-# Checked in CI by the `cargo-deny` job in .github/workflows/ci.yml. Covers
-# advisories and sources today; licenses and bans are layered on in follow-up
-# commits. Run `cargo deny check` locally before touching a dependency.
+# Checked in CI by the `cargo-deny` job in .github/workflows/ci.yml. The job's
+# check list widens one section at a time as this file is filled in; bans are
+# the last layer still to land. Run `cargo deny check` locally before touching
+# a dependency.
 
 [graph]
 # Resolve the crate graph with every feature on, so the policy sees the same
@@ -48,3 +49,27 @@ ignore = [
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Licenses
+# ─────────────────────────────────────────────────────────────────────────────
+[licenses]
+version = 2
+confidence-threshold = 0.9
+
+# SPDX ids accepted without individual review. Every entry is an OSI-approved
+# permissive licence or a public-domain-equivalent dedication — no copyleft
+# beyond file-scoped MPL, which is not present in the current graph and so is
+# deliberately not listed. Adding an id here is a policy change: justify it in
+# the commit message.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+]
