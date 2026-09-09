@@ -16,3 +16,8 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential pkg-config \
     && rm -rf /var/lib/apt/lists/*
+
+# cargo-chef turns the dependency graph into a cacheable layer so day-to-day
+# source edits don't trigger a full rebuild of every crate.
+ARG CARGO_CHEF_VERSION=0.1.68
+RUN cargo install cargo-chef --locked --version ${CARGO_CHEF_VERSION}
