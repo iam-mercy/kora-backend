@@ -287,4 +287,16 @@ mod tests {
             vec!["JWT_SECRET", "TOTP_ENCRYPTION_KEY"]
         );
     }
+
+    /// The decoded `EXAMPLE_TOTP_ENCRYPTION_KEY` constant must stay in lock
+    /// step with the base64 literal in `.env.example` — otherwise the guard
+    /// silently stops matching a deployment that copied that file verbatim.
+    #[test]
+    fn example_totp_key_matches_the_env_example_literal() {
+        const ENV_EXAMPLE_B64: &str = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(ENV_EXAMPLE_B64)
+            .expect("literal is valid base64");
+        assert_eq!(decoded.as_slice(), EXAMPLE_TOTP_ENCRYPTION_KEY);
+    }
 }
