@@ -135,6 +135,11 @@ async fn activate(app: &Router, user: &str) -> String {
 
 /// Fire `n` wrong-TOTP `/2fa/verify` calls at `user` concurrently and return
 /// their status codes once every one has completed.
+///
+/// `#[sqlx::test]` runs on a current-thread runtime, but that is enough to
+/// expose the lost-update race: every task suspends at the `load_record`
+/// await before any of them reaches the counter write, so they all resume
+/// from the same snapshot.
 async fn race_wrong_totp(app: &Router, user: &str, n: usize) -> Vec<StatusCode> {
     let auth = bearer(user);
     let mut set = tokio::task::JoinSet::new();
