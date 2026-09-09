@@ -500,6 +500,16 @@ async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
             .all(|s| *s == StatusCode::UNAUTHORIZED || *s == StatusCode::LOCKED),
         "each wrong guess is a 401, or a 423 once the lock trips: {statuses:?}"
     );
+    // The row serialises the N increments to 1..=N, so exactly the attempt
+    // that writes the Nth failure sees the lock and reports 423.
+    assert_eq!(
+        statuses
+            .iter()
+            .filter(|s| **s == StatusCode::LOCKED)
+            .count(),
+        1,
+        "exactly one attempt trips the lock: {statuses:?}"
+    );
 
     // The whole point: every one of the N failures is counted. The old
     // read-modify-write in register_failure let concurrent requests read the
