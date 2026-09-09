@@ -36,9 +36,14 @@ services:
     env_file:
       - .env.example
     environment:
-      # Override .env.example's localhost URL: inside the compose network the
-      # database is reachable at the service name.
-      DATABASE_URL: postgresql://kora:kora@postgres:5432/kora_2fa
+      # Reach Postgres through the host's published :5432 rather than over the
+      # compose bridge. DNS for the `postgres` service name resolves fine, but
+      # some nested/sandboxed Docker setups (Codespaces, certain CI runners)
+      # filter container-to-container traffic on user-defined bridges; routing
+      # via the host works everywhere, and Postgres already publishes 5432.
+      DATABASE_URL: postgresql://kora:kora@host.docker.internal:5432/kora_2fa
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
