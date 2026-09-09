@@ -367,11 +367,17 @@ async fn register_failure(
     .execute(exec)
     .await?;
 
-    Ok(if locked {
+    Ok(failure_error(locked))
+}
+
+/// The error a failed TOTP check surfaces to the caller: **423** once the
+/// lockout has tripped, otherwise a plain **401**.
+fn failure_error(locked: bool) -> AppError {
+    if locked {
         AppError::locked("account locked after too many failed attempts; retry in 15 minutes")
     } else {
         AppError::unauthorized("INVALID_TOKEN", "the provided TOTP token is invalid")
-    })
+    }
 }
 
 /// The `locked_until` value for a lockout that trips at `now`: `now` plus the
