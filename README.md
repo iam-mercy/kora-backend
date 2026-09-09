@@ -103,7 +103,7 @@ lists the four added vars, each cross-referenced to `ASSUMPTIONS.md`).
 ## Tests
 
 ```sh
-docker compose up -d
+docker compose up -d postgres              # tests only need the database
 export DATABASE_URL=postgresql://kora:kora@localhost:5432/kora_2fa
 cargo test -p kora-2fa                      # unit + #[sqlx::test] integration
 ```
