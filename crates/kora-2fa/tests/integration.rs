@@ -184,6 +184,7 @@ async fn race_wrong_totp(app: &Router, user: &str, n: usize) -> Vec<StatusCode> 
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn full_2fa_lifecycle(pool: PgPool) {
     let app = app(pool);
     let user = "user_abc123";
@@ -365,6 +366,7 @@ async fn full_2fa_lifecycle(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn auth_is_bearer_only_and_self_scoped(pool: PgPool) {
     let app = app(pool);
 
@@ -443,6 +445,7 @@ async fn auth_is_bearer_only_and_self_scoped(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn enable_conflicts_once_active(pool: PgPool) {
     let app = app(pool);
     let user = "dup_user";
@@ -482,6 +485,7 @@ async fn enable_conflicts_once_active(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn health_reports_ok(pool: PgPool) {
     let app = app(pool);
     let (status, body) = call(&app, get("/health", None)).await;
@@ -490,6 +494,7 @@ async fn health_reports_ok(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn lockout_counter_starts_at_zero(pool: PgPool) {
     let app = app(pool.clone());
     let user = "counter_zero";
