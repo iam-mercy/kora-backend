@@ -167,4 +167,5 @@ skip = [
     # conditionally by sqlx's own dependency tree in two independent spots
     # that pin different majors:
     #   0.5.18 — parking_lot_core -> futures-intrusive -> sqlx-core
+    #   0.9.4  — libredox -> whoami -> sqlx-postgres
 ]
