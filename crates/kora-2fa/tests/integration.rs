@@ -7,6 +7,24 @@
 //! -> the audit log records each event. Plus a concurrency regression test:
 //! N parallel wrong-TOTP attempts at one user_id must each be counted, so
 //! the lockout cannot be raced around.
+//!
+//! ## Test scheduling
+//!
+//! `POST /2fa/enable` runs `BACKUP_CODE_COUNT` (10) sequential Argon2id hashes
+//! — a deliberate hardening cost (ASSUMPTIONS.md #13). Most cases here hit
+//! that endpoint, some several times (`enable_conflicts_once_active`,
+//! `auth_is_bearer_only_and_self_scoped`). Run in parallel by the test
+//! harness on a small CI runner, a handful of them hashing at once starves
+//! every in-flight request enough to trip the 10 s `TimeoutLayer`
+//! (ASSUMPTIONS.md #18) — the request comes back `408` and the assertion
+//! fails. It shows up first in `coverage` (llvm-cov instrumentation widens
+//! the margin) but the plain `test` job is on the same edge.
+//!
+//! The timeout and the Argon2 cost are both fixed on purpose, so the fix is
+//! scheduling: every `#[sqlx::test]` in this file is marked
+//! `#[serial_test::serial]`, so the enable-heavy cases run one at a time
+//! instead of contending. Tests in other files (e.g. `hardening.rs`) run in
+//! their own process and are unaffected.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
