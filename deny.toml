@@ -161,4 +161,16 @@ skip = [
     # indexmap. One sqlx dependency bump away from collapsing; nothing we
     # control. Small, and it is already linked once for the std HashMap impl.
     { crate = "hashbrown" },
+
+    # ── redox_syscall 0.5.18 / 0.9.4 ───────────────────────────────────────
+    # A Redox-OS-only syscall crate, pulled into the graph transitively and
+    # conditionally by sqlx's own dependency tree in two independent spots
+    # that pin different majors:
+    #   0.5.18 — parking_lot_core -> futures-intrusive -> sqlx-core
+    #   0.9.4  — libredox -> whoami -> sqlx-postgres
+    # Both are `cfg(target_os = "redox")`-gated and never compile for our Linux
+    # release/runtime targets. Collapses once sqlx's transitive deps converge
+    # on one redox_syscall major; nothing we control.
+    { crate = "redox_syscall@0.5.18" },
+    { crate = "redox_syscall@0.9.4" },
 ]
