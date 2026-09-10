@@ -7,6 +7,24 @@
 //! -> the audit log records each event. Plus a concurrency regression test:
 //! N parallel wrong-TOTP attempts at one user_id must each be counted, so
 //! the lockout cannot be raced around.
+//!
+//! ## Test scheduling
+//!
+//! `POST /2fa/enable` runs `BACKUP_CODE_COUNT` (10) sequential Argon2id hashes
+//! — a deliberate hardening cost (ASSUMPTIONS.md #13). Most cases here hit
+//! that endpoint, some several times (`enable_conflicts_once_active`,
+//! `auth_is_bearer_only_and_self_scoped`). Run in parallel by the test
+//! harness on a small CI runner, a handful of them hashing at once starves
+//! every in-flight request enough to trip the 10 s `TimeoutLayer`
+//! (ASSUMPTIONS.md #18) — the request comes back `408` and the assertion
+//! fails. It shows up first in `coverage` (llvm-cov instrumentation widens
+//! the margin) but the plain `test` job is on the same edge.
+//!
+//! The timeout and the Argon2 cost are both fixed on purpose, so the fix is
+//! scheduling: every `#[sqlx::test]` in this file is marked
+//! `#[serial_test::serial]`, so the enable-heavy cases run one at a time
+//! instead of contending. Tests in other files (e.g. `hardening.rs`) run in
+//! their own process and are unaffected.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -166,6 +184,7 @@ async fn race_wrong_totp(app: &Router, user: &str, n: usize) -> Vec<StatusCode> 
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn full_2fa_lifecycle(pool: PgPool) {
     let app = app(pool);
     let user = "user_abc123";
@@ -347,6 +366,7 @@ async fn full_2fa_lifecycle(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn auth_is_bearer_only_and_self_scoped(pool: PgPool) {
     let app = app(pool);
 
@@ -425,6 +445,7 @@ async fn auth_is_bearer_only_and_self_scoped(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn enable_conflicts_once_active(pool: PgPool) {
     let app = app(pool);
     let user = "dup_user";
@@ -464,6 +485,7 @@ async fn enable_conflicts_once_active(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn health_reports_ok(pool: PgPool) {
     let app = app(pool);
     let (status, body) = call(&app, get("/health", None)).await;
@@ -472,6 +494,7 @@ async fn health_reports_ok(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn lockout_counter_starts_at_zero(pool: PgPool) {
     let app = app(pool.clone());
     let user = "counter_zero";
@@ -485,7 +508,10 @@ async fn lockout_counter_starts_at_zero(pool: PgPool) {
 /// write the same value, so the final counter lands below `N` and the lockout
 /// never trips. The atomic `failed_attempts = failed_attempts + 1` UPDATE
 /// makes it pass.
+///
+/// `#[serial]` — see the module "Test scheduling" note.
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
     // N is exactly MAX_FAILED_ATTEMPTS, so a correct implementation both
     // counts all N and trips the lock on the Nth.
@@ -540,7 +566,9 @@ async fn concurrent_wrong_totp_never_loses_a_failure(pool: PgPool) {
     assert_eq!(status, StatusCode::LOCKED);
 }
 
+/// `#[serial]` — see the module "Test scheduling" note.
 #[sqlx::test(migrations = "../../migrations")]
+#[serial_test::serial]
 async fn concurrent_sub_threshold_failures_are_all_counted(pool: PgPool) {
     // Fewer than MAX_FAILED_ATTEMPTS concurrent failures: the lock must not
     // trip, which isolates "no increment is lost" from the lockout logic.

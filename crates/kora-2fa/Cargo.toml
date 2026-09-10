@@ -51,3 +51,9 @@ base64 = "0.22"
 
 [dev-dependencies]
 http-body-util = "0.1"
+
+# Serialises the `#[sqlx::test]` integration cases that POST /2fa/enable
+# (BACKUP_CODE_COUNT sequential Argon2id hashes each) so a runnerful of them
+# hashing at once cannot outrun the 10s request timeout. See
+# tests/integration.rs "Test scheduling".
+serial_test = "3"
