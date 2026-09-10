@@ -165,4 +165,5 @@ skip = [
     # ── redox_syscall 0.5.18 / 0.9.4 ───────────────────────────────────────
     # A Redox-OS-only syscall crate, pulled into the graph transitively and
     # conditionally by sqlx's own dependency tree in two independent spots
+    # that pin different majors:
 ]
