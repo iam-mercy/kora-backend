@@ -161,4 +161,6 @@ skip = [
     # indexmap. One sqlx dependency bump away from collapsing; nothing we
     # control. Small, and it is already linked once for the std HashMap impl.
     { crate = "hashbrown" },
+
+    # ── redox_syscall 0.5.18 / 0.9.4 ───────────────────────────────────────
 ]
