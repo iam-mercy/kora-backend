@@ -166,4 +166,5 @@ skip = [
     # A Redox-OS-only syscall crate, pulled into the graph transitively and
     # conditionally by sqlx's own dependency tree in two independent spots
     # that pin different majors:
+    #   0.5.18 — parking_lot_core -> futures-intrusive -> sqlx-core
 ]
